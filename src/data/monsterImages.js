@@ -473,14 +473,55 @@ export function getMonsterSVG(element, set, variant = 0) {
   return A[0](c)
 }
 
+// ── PNG image filename maps (matches public/monsters/{set}/{element}/*.png) ──
+const PNG_NAMES = {
+  Fire: {
+    Animal: ['flamelion','pyrotiger','emberfox','ashbear','blazewolf','scorchrabbit','infernopanda','cinderdeer','flarehorse','emberpup'],
+    Plant:  ['blazecactus','suncrown','pepperling','embershrub','torchfern','ashrose','lavalily','scorchorchid','kindlemaple','pyrosprout'],
+    Insect: ['glofly','emberbeetle','blazemoth','lavabee','ashcricket','torchant','scaldspider','emberwing','charbutterfly','sizzlewasp'],
+  },
+  Water: {
+    Animal: ['bubbotter','aquaseal','wavedolphin','frostpenguin','puddleduck','dewtoad','tideturtle','misthippo','streambeaver','rainplatypus'],
+    Plant:  ['pondlily','kelpling','lotusling','dewleaf','mistfern','cattailsplash','reedripple','algaeblob','mangrootling','bubblemoss'],
+    Insect: ['ripplebug','divebeetle','mistmosquito','seamoth','bubblefly','dewcicada','rainant','dropspider','tidedragonfly','wavebutterfly'],
+  },
+  Earth: {
+    Animal: ['boulderphant','stonerhino','mossgorilla','mudboar','digmole','shellarmadillo','rootbadger','granitebuffalo','pebblepangolin','crystalox'],
+    Plant:  ['acornling','mushroomcap','bambootot','vinewrap','mossrock','rootbuddy','bonsaikin','fernling','dandylion','pebblevine'],
+    Insect: ['staghorn','bouldergrub','rhinobug','mudbeetle','stoneweaver','cavecricket','soilant','claymoth','pebbleworm','mudwasp'],
+  },
+  Wind: {
+    Animal: ['gusteagle','breezeowl','skyparrot','driftbat','galefalcon','cloudpeacock','mistswiftswan','zephyrhummingbird','aircrane','cyclonehawk'],
+    Plant:  ['puffball','willowisp','petalsprite','cloudbloom','breezebloom','featherfern','skyreed','driftweed','gustshrub','zephyrbloom'],
+    Insect: ['driftbutterfly','breezefly','gustdamsel','skylunamoth','airbeetle','zephyrhopper','cloudpollinator','whirlcricket','gustwasp','mistfly'],
+  },
+  // Shadow slot uses lightning-themed images
+  Shadow: {
+    Animal: ['zapcheetah','boltferret','staticcat','shockmongoose','voltsquirrel','thunderraccoon','sparkhamster','zapweasel','voltmeerkat','boltlynx'],
+    Plant:  ['thundershroom','boltcactus','sparkflower','voltberry','stormfern','plasmaorchid','zapvine','staticgrass','thunderbud','boltsprout'],
+    Insect: ['sparkant','thunderbeetle','boltmoth','stormfly','staticglow','voltbutterfly','zaphopper','thunderwasp','chargespider','boltcricket'],
+  },
+}
+const EL_FOLDER  = { Fire:'fire', Water:'water', Earth:'earth', Wind:'wind', Shadow:'lightning' }
+const SET_FOLDER = { Animal:'animal', Plant:'plant', Insect:'insect' }
+
 /**
  * Convenience: pass the monster object directly.
- * Derives variant from dex number (#001 → 0, #002 → 1, … #010 → 9, #011 → 0 …)
+ * Returns an <img> pointing to the PNG artwork, or SVG fallback.
  */
 export function getMonsterImage(monster) {
-  const dexNum = parseInt((monster?.dex || '#001').replace('#', '')) || 1
+  const dexNum  = parseInt((monster?.dex || '#001').replace('#', '')) || 1
   const variant = (dexNum - 1) % 10
-  return getMonsterSVG(monster?.element, monster?.set, variant)
+  const element = monster?.element || 'Fire'
+  const set     = monster?.set     || 'Animal'
+
+  const names = PNG_NAMES[element]?.[set]
+  if (names) {
+    const file   = names[variant]
+    const folder = `${SET_FOLDER[set]}/${EL_FOLDER[element]}`
+    return `<img src="/monsters/${folder}/${file}.png" style="width:100%;height:100%;object-fit:contain" loading="lazy" />`
+  }
+  return getMonsterSVG(element, set, variant)
 }
 
 export function getMonsterDataUrl(element, set, variant = 0) {
