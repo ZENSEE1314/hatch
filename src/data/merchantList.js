@@ -1,0 +1,11 @@
+// Full merchant directory for HATCHME
+export const MERCHANT_LIST = [
+  { code:'NEST01', name:'NestMart SG', emoji:'🏪', category:'Supermarket', description:'Your neighbourhood supermarket with fresh produce and daily essentials.', country:'SG', currency:'SGD', tax:9, taxName:'GST', fx:1.00, eggTier:'Bronze', rating:4.2, reviews:128, verified:true },
+  { code:'SAKURA', name:'Sakura Cafe', emoji:'🌸', category:'Café', description:'Authentic Japanese café serving matcha, ramen and seasonal specials.', country:'JP', currency:'JPY', tax:10, taxName:'JCT', fx:0.0089, eggTier:'Silver', rating:4.7, reviews:89, verified:true },
+  { code:'FOOD01', name:'FoodHaven MY', emoji:'🍜', category:'Food Court', description:'Malaysian hawker-style food court with over 30 stalls and local favourites.', country:'MY', currency:'MYR', tax:6, taxName:'SST', fx:0.295, eggTier:'Gold', rating:4.5, reviews:203, verified:true },
+  { code:'TECH01', name:'TechZone US', emoji:'💻', category:'Electronics', description:'Electronics megastore with the latest gadgets, phones and accessories.', country:'US', currency:'USD', tax:8, taxName:'Sales Tax', fx:1.34, eggTier:'Diamond', rating:4.1, reviews:67, verified:true },
+  { code:'BOBA01', name:'BubbleBliss SG', emoji:'🧋', category:'Beverages', description:'Award-winning bubble tea chain with 50+ flavours and fresh toppings.', country:'SG', currency:'SGD', tax:9, taxName:'GST', fx:1.00, eggTier:'Bronze', rating:4.8, reviews:312, verified:true },
+  { code:'BOOK01', name:'Wonderbooks', emoji:'📚', category:'Retail', description:'Independent bookstore specialising in fantasy, sci-fi and manga collections.', country:'SG', currency:'SGD', tax:9, taxName:'GST', fx:1.00, eggTier:'Silver', rating:4.6, reviews:156, verified:false },
+  { code:'GYM001', name:'IronFit Gym', emoji:'🏋️', category:'Fitness', description:'24-hour fitness centre with state-of-the-art equipment and personal trainers.', country:'SG', currency:'SGD', tax:9, taxName:'GST', fx:1.00, eggTier:'Gold', rating:4.3, reviews:94, verified:true },
+  { code:'RAMEN1', name:'Ramen Takashi', emoji:'🍥', category:'Restaurant', description:'Authentic Hakata-style tonkotsu ramen with 12-hour pork bone broth.', country:'SG', currency:'SGD', tax:9, taxName:'GST', fx:1.00, eggTier:'Silver', rating:4.9, reviews:441, verified:true },
+]
