@@ -2,6 +2,9 @@
   "name": "hatchme",
   "version": "1.0.0",
   "description": "HATCHME Real Life RPG - Full App",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
