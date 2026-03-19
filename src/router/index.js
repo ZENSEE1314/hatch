@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
+// ── HOME ──
+import HomePage from '@/views/HomePage.vue'
+
 // ── PLAYER VIEWS ──
 import PlayerLogin        from '@/views/player/PlayerLogin.vue'
 import PlayerHome         from '@/views/player/PlayerHome.vue'
@@ -34,7 +37,7 @@ import EggHunterDashboard from '@/views/egghunter/EggHunterDashboard.vue'
 
 const routes = [
   // ── Root ──
-  { path: '/', redirect: '/player/login' },
+  { path: '/', component: HomePage, meta: { title: 'HATCHME - Real Life RPG', public: true } },
 
   // ── PLAYER ──
   { path: '/player/login', component: PlayerLogin, meta: { title: 'Sign In', public: true } },
@@ -81,7 +84,7 @@ const routes = [
   { path: '/egghunter/dashboard', component: EggHunterDashboard, meta: { title: 'Egg Hunter Portal',  auth: 'egghunter' } },
 
   // ── 404 ──
-  { path: '/:pathMatch(.*)*', redirect: '/player/login' }
+  { path: '/:pathMatch(.*)*', redirect: '/' }
 ]
 
 const router = createRouter({
