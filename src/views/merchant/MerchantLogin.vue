@@ -79,8 +79,8 @@
 
         <div v-if="error" class="error-msg">{{ error }}</div>
 
-        <button class="btn btn-teal btn-full" style="margin-top:16px;padding:14px" @click="submit">
-          {{ mode === 'login' ? 'Sign In →' : 'Register Store →' }}
+        <button class="btn btn-teal btn-full" style="margin-top:16px;padding:14px" @click="submit" :disabled="loading">
+          {{ loading ? 'Please wait...' : (mode === 'login' ? 'Sign In →' : 'Register Store →') }}
         </button>
 
         <div v-if="mode === 'login'" style="text-align:center;margin-top:12px;font-size:12px;font-weight:700;color:var(--text2)">
@@ -113,6 +113,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { merchantStore } from '@/store/merchantStore.js'
+import { MerchantDB } from '@/api/db.js'
 
 const router      = useRouter()
 const mode        = ref('login')
@@ -149,25 +150,42 @@ onMounted(() => {
   if (saved) { form.value.email = saved; rememberMe.value = true }
 })
 
-function submit() {
+const loading = ref(false)
+
+async function submit() {
   error.value = ''
   if (!form.value.email || !form.value.password) { error.value = 'Please fill in all fields.'; return }
-
-  if (mode.value === 'register') {
-    if (!form.value.store.trim()) { error.value = 'Please enter your store name.'; return }
-    if (!form.value.country)      { error.value = 'Please select your country.'; return }
-    if (!form.value.phone.trim()) { error.value = 'Please enter your phone number.'; return }
-    const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
-    if (accounts[form.value.email.toLowerCase()]) { error.value = 'Email already registered. Please sign in.'; return }
-    const fullPhone = dialCode(form.value.country) + form.value.phone.trim().replace(/^0/, '')
-    merchantStore.register(form.value.store.trim(), form.value.country, fullPhone, form.value.email.trim(), form.value.password, form.value.referralCode.trim())
-    router.push('/merchant/pending')
-  } else {
-    const result = merchantStore.login(form.value.email, form.value.password)
-    if (result.error) { error.value = result.error; return }
-    if (rememberMe.value) localStorage.setItem('merchantRemember', form.value.email)
-    else localStorage.removeItem('merchantRemember')
-    router.push('/merchant/dashboard')
+  loading.value = true
+  try {
+    if (mode.value === 'register') {
+      if (!form.value.store.trim()) { error.value = 'Please enter your store name.'; return }
+      if (!form.value.country)      { error.value = 'Please select your country.'; return }
+      if (!form.value.phone.trim()) { error.value = 'Please enter your phone number.'; return }
+      const fullPhone = dialCode(form.value.country) + form.value.phone.trim().replace(/^0/, '')
+      const res = await MerchantDB.register({
+        email: form.value.email.trim(), store: form.value.store.trim(),
+        password: form.value.password, country: form.value.country,
+        phone: fullPhone, referralCode: form.value.referralCode.trim()
+      })
+      if (res.error) { error.value = res.error; return }
+      merchantStore.register(form.value.store.trim(), form.value.country, fullPhone, form.value.email.trim(), form.value.password, form.value.referralCode.trim())
+      router.push('/merchant/pending')
+    } else {
+      const res = await MerchantDB.login({ email: form.value.email, password: form.value.password })
+      if (res.error) { error.value = res.error; return }
+      // Sync local store
+      const localResult = merchantStore.login(form.value.email, form.value.password)
+      if (localResult.error) {
+        merchantStore.register(res.merchant.store, res.merchant.country, res.merchant.phone, res.merchant.email, form.value.password, res.merchant.referralCode || '')
+      }
+      if (rememberMe.value) localStorage.setItem('merchantRemember', form.value.email)
+      else localStorage.removeItem('merchantRemember')
+      router.push('/merchant/dashboard')
+    }
+  } catch {
+    error.value = 'Connection error. Please check your internet.'
+  } finally {
+    loading.value = false
   }
 }
 

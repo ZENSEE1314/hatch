@@ -57,7 +57,7 @@
 
         <div v-if="error" class="error-msg">{{ error }}</div>
 
-        <button class="btn btn-primary btn-full submit-btn" @click="submit">Create Account →</button>
+        <button class="btn btn-primary btn-full submit-btn" @click="submit" :disabled="loading">{{ loading ? 'Creating...' : 'Create Account →' }}</button>
 
         <div class="divider"><span>— or sign up with —</span></div>
         <div class="social-row">
@@ -96,7 +96,7 @@
 
         <div v-if="error" class="error-msg">{{ error }}</div>
 
-        <button class="btn btn-primary btn-full submit-btn" @click="submit">Sign In →</button>
+        <button class="btn btn-primary btn-full submit-btn" @click="submit" :disabled="loading">{{ loading ? 'Signing in...' : 'Sign In →' }}</button>
 
         <div class="divider"><span>— or sign in with —</span></div>
         <div class="social-row">
@@ -149,6 +149,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { playerStore } from '@/store/playerStore.js'
 import { COUNTRIES } from '@/data/gameData.js'
+import { PlayerDB } from '@/api/db.js'
 
 // ── Replace with your real credentials ─────────────────────────────────────
 const GOOGLE_CLIENT_ID   = 'YOUR_GOOGLE_CLIENT_ID'   // console.cloud.google.com → APIs & Services → Credentials
@@ -190,27 +191,53 @@ onMounted(() => {
 })
 
 // ── Submit (email/password) ─────────────────────────────────────────────────
-function submit() {
+const loading = ref(false)
+
+async function submit() {
   error.value = ''
-  if (mode.value === 'register') {
-    if (!form.value.name.trim())     { error.value = 'Please enter your name.'; return }
-    if (!form.value.email.trim())    { error.value = 'Please enter your email.'; return }
-    if (!form.value.password)        { error.value = 'Please set a password.'; return }
-    const accounts = JSON.parse(localStorage.getItem('playerAccounts') || '{}')
-    if (accounts[form.value.email.toLowerCase()]) { error.value = 'Email already registered. Please sign in.'; return }
-    playerStore.register(form.value.name.trim(), form.value.email.trim(), form.value.password, form.value.referralCode.trim() || null)
-    playerStore.user.phone = form.value.dialCode + ' ' + form.value.phone.trim()
-    playerStore.user.dob   = form.value.dob
-    playerStore.save()
-  } else {
-    if (!form.value.identifier)  { error.value = 'Please enter your email or phone.'; return }
-    if (!form.value.password)    { error.value = 'Please enter your password.'; return }
-    const result = playerStore.login(form.value.identifier, form.value.password)
-    if (result.error) { error.value = result.error; return }
-    if (rememberMe.value) localStorage.setItem('playerRemember', form.value.identifier)
-    else localStorage.removeItem('playerRemember')
+  loading.value = true
+  try {
+    if (mode.value === 'register') {
+      if (!form.value.name.trim())  { error.value = 'Please enter your name.'; return }
+      if (!form.value.email.trim()) { error.value = 'Please enter your email.'; return }
+      if (!form.value.password)     { error.value = 'Please set a password.'; return }
+      // Register in DB (source of truth)
+      const res = await PlayerDB.register({
+        name: form.value.name.trim(),
+        email: form.value.email.trim(),
+        password: form.value.password,
+        phone: form.value.dialCode + ' ' + form.value.phone.trim(),
+        dob: form.value.dob,
+        referralCode: form.value.referralCode.trim() || '',
+      })
+      if (res.error) { error.value = res.error; return }
+      // Init local game state
+      playerStore.register(form.value.name.trim(), form.value.email.trim(), form.value.password, form.value.referralCode.trim() || null)
+      playerStore.user.phone = form.value.dialCode + ' ' + form.value.phone.trim()
+      playerStore.user.dob   = form.value.dob
+      playerStore.save()
+    } else {
+      if (!form.value.identifier) { error.value = 'Please enter your email or phone.'; return }
+      if (!form.value.password)   { error.value = 'Please enter your password.'; return }
+      // Login via DB
+      const res = await PlayerDB.login({ identifier: form.value.identifier, password: form.value.password })
+      if (res.error) { error.value = res.error; return }
+      // Sync local store (load existing game state or init fresh)
+      const localResult = playerStore.login(form.value.identifier, form.value.password)
+      if (localResult.error) {
+        // Account exists in DB but not locally — create local game state
+        playerStore.register(res.player.name, res.player.email, form.value.password, null)
+        playerStore.save()
+      }
+      if (rememberMe.value) localStorage.setItem('playerRemember', form.value.identifier)
+      else localStorage.removeItem('playerRemember')
+    }
+    router.push('/player/home')
+  } catch (e) {
+    error.value = 'Connection error. Please check your internet.'
+  } finally {
+    loading.value = false
   }
-  router.push('/player/home')
 }
 
 // ── Forgot Password ─────────────────────────────────────────────────────────

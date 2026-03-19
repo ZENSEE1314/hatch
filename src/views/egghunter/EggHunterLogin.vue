@@ -64,6 +64,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { HunterDB } from '@/api/db.js'
 
 const router     = useRouter()
 const route      = useRoute()
@@ -96,18 +97,30 @@ onMounted(() => {
   }
 })
 
-function submit() {
+const loading = ref(false)
+
+async function submit() {
   if (!form.value.email || !form.value.password) { error.value = 'Please fill in all fields.'; return }
-  const accounts = JSON.parse(localStorage.getItem('eggHunterAccounts') || '{}')
-  const key = form.value.email.toLowerCase().trim()
-  if (!accounts[key]) { error.value = 'Account not found. Ask admin for your setup link.'; return }
-  if (accounts[key].password !== form.value.password) { error.value = 'Incorrect password.'; return }
   error.value = ''
   success.value = ''
-  if (rememberMe.value) localStorage.setItem('eggHunterRemember', form.value.email)
-  else localStorage.removeItem('eggHunterRemember')
-  localStorage.setItem('eggHunterAuth', key)
-  router.push('/egghunter/dashboard')
+  loading.value = true
+  try {
+    const res = await HunterDB.login({ email: form.value.email, password: form.value.password })
+    if (res.error) { error.value = res.error; return }
+    const key = form.value.email.toLowerCase().trim()
+    // Also sync to localStorage so dashboard can read it
+    const accounts = JSON.parse(localStorage.getItem('eggHunterAccounts') || '{}')
+    accounts[key] = { name: res.hunter.name, code: res.hunter.code, password: form.value.password }
+    localStorage.setItem('eggHunterAccounts', JSON.stringify(accounts))
+    if (rememberMe.value) localStorage.setItem('eggHunterRemember', form.value.email)
+    else localStorage.removeItem('eggHunterRemember')
+    localStorage.setItem('eggHunterAuth', key)
+    router.push('/egghunter/dashboard')
+  } catch {
+    error.value = 'Connection error. Please check your internet.'
+  } finally {
+    loading.value = false
+  }
 }
 
 // ── Forgot Password ──
