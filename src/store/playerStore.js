@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { PlayerDB } from '@/api/db.js'
 
 const FRESH_QUESTS = [
   // Feed — sequential (unlock one by one)
@@ -161,8 +162,7 @@ export const playerStore = reactive({
   save() {
     const key = localStorage.getItem('playerAuth')
     if (!key) return
-    const accounts = JSON.parse(localStorage.getItem('playerAccounts') || '{}')
-    accounts[key] = {
+    const snapshot = {
       user:          this.user,
       monsters:      this.monsters,
       eggs:          this.eggs,
@@ -173,7 +173,11 @@ export const playerStore = reactive({
       notifications: this.notifications,
       feedingData:   this.feedingData,
     }
+    const accounts = JSON.parse(localStorage.getItem('playerAccounts') || '{}')
+    accounts[key] = snapshot
     localStorage.setItem('playerAccounts', JSON.stringify(accounts))
+    // Sync to DB (fire and forget — keeps egg timers + all game state in sync across devices)
+    PlayerDB.saveData(key, snapshot).catch(() => {})
   },
 
   markNotifRead(id) {

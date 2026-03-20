@@ -208,7 +208,7 @@ function getAIReply(text) {
 
   // Merchants / scan / purchase
   if (t.match(/merchant|store|shop|scan|qr|purchase|buy|spend at/)) {
-    return `🏪 **Earning from Merchants**\n\n1. Go to **Scan** → Browse Merchants\n2. Select an approved merchant near you\n3. Enter the amount you actually paid\n4. Confirm and rate your experience\n5. Wait for merchant approval 🥚\n6. Your egg hatches into a monster!\n\n**What you earn:**\nYou receive **50% of your purchase value** (after tax deduction) — this is unlocked gradually as you **feed your monster** daily.\n\nThe more you spend, the better the egg tier, and the rarer the monster you'll hatch! 🌟`
+    return `🏪 **Earning from Merchants**\n\n1. Go to **Scan** → Browse Merchants\n2. Select an approved merchant near you\n3. Enter the amount you actually paid\n4. Confirm and rate your experience\n5. Wait for egg approval 🥚\n6. Your egg hatches into a monster!\n\n**What you earn:**\nYou receive **50% of your purchase value** (after tax) — unlocked gradually each day as you **feed your monsters**.\n\nThe more you spend, the better the egg tier, and the rarer the monster you'll hatch! 🌟`
   }
 
   // Feed / hunger / monster care
@@ -248,17 +248,18 @@ function getAIReply(text) {
 
   // Spending / safebox / cash lock
   if (t.match(/safebox|safe box|lock|cash lock|spending|why is my cash|unlock cash/)) {
-    return `💰 **Spending & The Safebox**\n\nWhen you spend at a merchant and your egg hatches, your **cash reward goes into your Safebox** 🔒\n\n**Why is it locked?**\nIt's our way of encouraging daily monster care! Your cash unlocks **gradually every day** as you:\n\n🍖 Feed each monster **3 times per day**\n\nThe more monsters you care for, the faster your safebox unlocks.\n\n**Also earn by:**\n• Completing quests 📋\n• Spending at merchants 🏪\n\n**Minimum withdrawal: $50** — go to **Profile → Withdraw** when ready! 💵`
+    return `💰 **Spending & The Safebox**\n\nWhen you spend at a merchant and your egg hatches:\n1. Your **cash reward** is safely stored in your **Safebox** 🔒\n2. Each day you **feed each monster 3 times**, the safebox unlocks a portion of your cash\n3. The more monsters you have and care for, the faster it unlocks!\n\n**Why safebox?** It rewards players who actively care for their monsters every day.\n\n**Also earn by:**\n• Completing spending quests at merchants 📋\n• Doing daily quests and events 🎉\n\n**Minimum withdrawal: $50** — go to **Profile → Withdraw** when ready! 💵`
   }
 
   // Earnings / cash / withdraw / payout
   if (t.match(/earn|cash|money|payout|withdraw|withdrawal|how much|reward/)) {
-    return `💵 **Earnings & Withdrawals**\n\n**How you earn:**\n🏪 Spend at merchants → **50% of purchase value** (after tax) unlocks through feeding\n📋 Complete quests → cash + gem rewards\n🍖 Feed monsters daily → unlock your safebox rewards\n🎉 Attend special events → bonus eggs + cash\n\n**Withdrawing:**\n• Minimum withdrawal: **$50**\n• Go to **Profile → Withdraw**\n• Processing: 3–5 business days\n\n**Your balance:** $${ (playerStore.user.cash || 0).toFixed(2) }\n\nKeep feeding and completing quests to grow your rewards! 🚀`
+    const bal = (playerStore.user.cash || 0).toFixed(2)
+    return `💵 **Earnings & Withdrawals**\n\n**How you earn cash:**\n🏪 Spend at partner merchants → get eggs → hatch → earn rewards\n📋 Complete quests → cash + gem rewards\n🍖 Feed your monsters daily → unlock your safebox cash\n\n**Your cash is locked in your Safebox** until you feed your monsters 3× per day — the more monsters you care for, the faster it unlocks!\n\n**Withdrawing:**\n• Minimum withdrawal: **$50**\n• Go to **Profile → Withdraw**\n• Processing: 3–5 business days\n\n**Your balance:** $${bal}\n\nKeep feeding and completing quests to grow your rewards! 🚀`
   }
 
   // Payment / do I need to pay
   if (t.match(/pay to play|do i pay|cost|free|subscription|pay to use|how much does it cost/)) {
-    return `🎮 **HATCHME is FREE to play!**\n\nYou don't need to pay anything to use HATCHME.\n\n• No subscription fees\n• No pay-to-win\n• **We pay YOU** — earn real cash rewards just by living your life!\n\n**How?** When you shop at our partner merchants, **they fund your egg rewards**. You just scan, hatch, and collect! 🥚\n\nSpend at merchants → get eggs → hatch monsters → earn real cash. That's it! 💰`
+    return `🎮 **HATCHME is FREE to play!**\n\nYou **never need to pay** anything to use HATCHME — no subscription fees, no pay-to-win.\n\n**How it works:**\nSimply spend at our partner merchants as you normally would.\n• You get **eggs** for every purchase ✅\n• Eggs hatch into **monsters** ✅\n• Monsters unlock **real cash rewards** for you ✅\n\nWe reward you — you just shop, hatch, and collect! 🥚💰`
   }
 
   // Achievements

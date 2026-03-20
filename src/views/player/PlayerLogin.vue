@@ -216,18 +216,40 @@ async function submit() {
       playerStore.user.phone = form.value.dialCode + ' ' + form.value.phone.trim()
       playerStore.user.dob   = form.value.dob
       playerStore.save()
+      // Save initial game state to DB so it's available on any device
+      await PlayerDB.saveData(form.value.email.trim().toLowerCase(), {
+        user: playerStore.user, monsters: playerStore.monsters, eggs: playerStore.eggs,
+        quests: playerStore.quests, achievements: playerStore.achievements,
+        referCode: playerStore.referCode, settings: playerStore.settings,
+        notifications: playerStore.notifications, feedingData: playerStore.feedingData,
+      })
     } else {
       if (!form.value.identifier) { error.value = 'Please enter your email or phone.'; return }
       if (!form.value.password)   { error.value = 'Please enter your password.'; return }
       // Login via DB
       const res = await PlayerDB.login({ identifier: form.value.identifier, password: form.value.password })
       if (res.error) { error.value = res.error; return }
-      // Sync local store (load existing game state or init fresh)
-      const localResult = playerStore.login(form.value.identifier, form.value.password)
-      if (localResult.error) {
-        // Account exists in DB but not locally — create local game state
-        playerStore.register(res.player.name, res.player.email, form.value.password, null)
-        playerStore.save()
+      const email = res.player.email
+      if (res.player.data) {
+        // Restore full game state from DB (preserves egg timers, monsters, etc.)
+        const accounts = JSON.parse(localStorage.getItem('playerAccounts') || '{}')
+        accounts[email] = res.player.data
+        localStorage.setItem('playerAccounts', JSON.stringify(accounts))
+        localStorage.setItem('playerAuth', email)
+        playerStore._apply(res.player.data)
+      } else {
+        // No game data saved in DB yet — try local, else create fresh and save to DB
+        const localResult = playerStore.login(form.value.identifier, form.value.password)
+        if (localResult.error) {
+          playerStore.register(res.player.name, email, form.value.password, null)
+        }
+        // Save initial game state up to DB so next login restores correctly
+        await PlayerDB.saveData(email, {
+          user: playerStore.user, monsters: playerStore.monsters, eggs: playerStore.eggs,
+          quests: playerStore.quests, achievements: playerStore.achievements,
+          referCode: playerStore.referCode, settings: playerStore.settings,
+          notifications: playerStore.notifications, feedingData: playerStore.feedingData,
+        })
       }
       if (rememberMe.value) localStorage.setItem('playerRemember', form.value.identifier)
       else localStorage.removeItem('playerRemember')
