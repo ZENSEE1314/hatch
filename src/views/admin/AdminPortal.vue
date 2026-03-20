@@ -202,9 +202,6 @@
             </tbody>
           </table>
         </div>
-        <div style="margin-top:12px;background:#f4f6ff;border:2px solid #e0d7ff;border-radius:12px;padding:12px;font-size:11px;font-family:monospace;word-break:break-all;color:#333">
-          <strong>Raw eggHunterAccounts in localStorage:</strong><br>{{ rawHunterData }}
-        </div>
       </div>
 
       <!-- ── MONSTERS ── -->
@@ -979,11 +976,11 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MONSTER_DEX from '@/data/monsterDex.js'
 import { getMonsterImage } from '@/data/monsterImages.js'
-import { useAutoRefresh } from '@/composables/useAutoRefresh.js'
+import { PlayerDB, MerchantDB, HunterDB } from '@/api/db.js'
 
 const router  = useRouter()
 const role    = localStorage.getItem('adminAuth') || 'admin'
@@ -991,8 +988,49 @@ const section = ref('dashboard')
 const search  = ref('')
 const toast   = ref('')
 
-// Live refresh every 2 s — injects reactivity into all computed that read localStorage
-const tick = useAutoRefresh(2000)
+// Map DB player row → UI format
+function mapPlayer(row) {
+  const d = row.data || {}
+  return {
+    email: row.email,
+    user: {
+      name:   d.user?.name   || row.name  || row.email,
+      avatar: d.user?.avatar || '',
+      level:  d.user?.level  || 1,
+      xp:     d.user?.xp     || 0,
+      cash:   d.user?.cash   || 0,
+      gems:   d.user?.gems   || 0,
+    },
+    eggs:     d.eggs     || [],
+    monsters: d.monsters || [],
+    quests:   d.quests   || [],
+    phone:    row.phone,
+    dob:      row.dob,
+    createdAt: row.created_at,
+  }
+}
+
+// Map DB merchant row → UI format
+function mapMerchant(row) {
+  const d = row.data || {}
+  return {
+    email:             row.email,
+    status:            row.status || 'pending',
+    info: d.info || {
+      name:     row.store   || row.email,
+      phone:    row.phone   || '',
+      country:  row.country || '',
+      currency: '',
+      tier:     'Bronze',
+    },
+    credits:           d.credits           || 0,
+    assignedEggHunter: d.assignedEggHunter || '',
+    assignedAt:        d.assignedAt        || null,
+    _store:            row.store,
+    _country:          row.country,
+    _phone:            row.phone,
+  }
+}
 
 const ELEMENTS = ['Fire','Water','Earth','Wind','Shadow']
 const TIERS    = ['Bronze','Silver','Gold','Diamond','Mystic']
@@ -1022,11 +1060,7 @@ const DEFAULT_QUESTS = [
 function showToast(msg) { toast.value = msg; setTimeout(() => { toast.value = '' }, 2500) }
 function logout() { localStorage.removeItem('adminAuth'); router.push('/admin/login') }
 
-// ── DATA HELPERS ──
-function getPlayerAccounts()     { return JSON.parse(localStorage.getItem('playerAccounts')   || '{}') }
-function savePlayerAccounts(obj) { localStorage.setItem('playerAccounts', JSON.stringify(obj)) }
-function getMerchantAccounts()   { return JSON.parse(localStorage.getItem('merchantAccounts') || '{}') }
-function saveMerchantAccounts(o) { localStorage.setItem('merchantAccounts', JSON.stringify(o)) }
+// ── DATA HELPERS (non-player/merchant still use localStorage) ──
 function getMonsterOverrides()   { return JSON.parse(localStorage.getItem('adminMonsterOverrides') || '{}') }
 function saveMonsterOverrides(o) { localStorage.setItem('adminMonsterOverrides', JSON.stringify(o)) }
 function getCustomMonsters()     { return JSON.parse(localStorage.getItem('adminCustomMonsters') || '[]') }
@@ -1047,11 +1081,13 @@ function readFile(file) {
 }
 
 // ── PLAYERS ──
-const allPlayers = computed(() => {
-  tick.value // live
-  const raw = getPlayerAccounts()
-  return Object.entries(raw).map(([email, d]) => ({ email, ...d }))
-})
+const allPlayers = ref([])
+async function loadPlayers() {
+  try {
+    const rows = await PlayerDB.list()
+    allPlayers.value = Array.isArray(rows) ? rows.map(mapPlayer) : []
+  } catch { showToast('⚠️ Could not load players') }
+}
 const filteredPlayers = computed(() => {
   if (!search.value.trim()) return allPlayers.value
   const q = search.value.toLowerCase()
@@ -1060,108 +1096,101 @@ const filteredPlayers = computed(() => {
 const editPlayer = ref(null)
 function viewPlayer(p)     { if (role === 'accountant') openEditPlayer(p) }
 function openEditPlayer(p) { editPlayer.value = JSON.parse(JSON.stringify(p)) }
-function savePlayer() {
-  const accounts = getPlayerAccounts()
-  const key = editPlayer.value.email
-  if (!accounts[key]) return
-  accounts[key].user = editPlayer.value.user
-  savePlayerAccounts(accounts)
+async function savePlayer() {
+  const p = editPlayer.value
+  await PlayerDB.saveData(p.email, { user: p.user, eggs: p.eggs, monsters: p.monsters, quests: p.quests })
   editPlayer.value = null
+  await loadPlayers()
   showToast('✅ Player saved!')
 }
-function deletePlayer(p) {
+async function deletePlayer(p) {
   if (!confirm(`Delete account for ${p.user.name} (${p.email})? This cannot be undone.`)) return
-  const accounts = getPlayerAccounts()
-  delete accounts[p.email]
-  savePlayerAccounts(accounts)
+  await PlayerDB.delete(p.email)
+  await loadPlayers()
   showToast('🗑 Player deleted.')
 }
 
 // ── MERCHANTS ──
-const allMerchants = computed(() => {
-  tick.value // live
-  const raw = getMerchantAccounts()
-  return Object.entries(raw).map(([email, d]) => ({ email, ...d }))
-})
+const allMerchants = ref([])
+async function loadMerchants() {
+  try {
+    const rows = await MerchantDB.list()
+    allMerchants.value = Array.isArray(rows) ? rows.map(mapMerchant) : []
+  } catch { showToast('⚠️ Could not load merchants') }
+}
 const pendingMerchants = computed(() => allMerchants.value.filter(m => m.status === 'pending'))
 const editMerchant = ref(null)
 function openEditMerchant(m) { editMerchant.value = JSON.parse(JSON.stringify(m)) }
-function approveMerchant(m) {
-  const accounts = getMerchantAccounts()
-  if (accounts[m.email]) { accounts[m.email].status = 'approved'; saveMerchantAccounts(accounts); showToast('✅ Merchant approved!') }
+async function approveMerchant(m) {
+  const data = { info: m.info, credits: m.credits, assignedEggHunter: m.assignedEggHunter, assignedAt: m.assignedAt }
+  await MerchantDB.saveData(m.email, data, 'approved')
+  await loadMerchants()
+  showToast('✅ Merchant approved!')
 }
-function rejectMerchant(m) {
+async function rejectMerchant(m) {
   if (!confirm(`Reject merchant ${m.info?.name}?`)) return
-  const accounts = getMerchantAccounts()
-  if (accounts[m.email]) { accounts[m.email].status = 'rejected'; saveMerchantAccounts(accounts); showToast('❌ Merchant rejected.') }
+  const data = { info: m.info, credits: m.credits, assignedEggHunter: m.assignedEggHunter, assignedAt: m.assignedAt }
+  await MerchantDB.saveData(m.email, data, 'rejected')
+  await loadMerchants()
+  showToast('❌ Merchant rejected.')
 }
-function saveMerchant() {
-  const accounts = getMerchantAccounts()
-  const key = editMerchant.value.email
-  if (!accounts[key]) return
-  const prevHunter = accounts[key].assignedEggHunter || ''
-  const nextHunter = editMerchant.value.assignedEggHunter || ''
-  accounts[key].info              = editMerchant.value.info
-  accounts[key].credits           = editMerchant.value.credits
-  accounts[key].status            = editMerchant.value.status
-  accounts[key].assignedEggHunter = nextHunter
-  if (nextHunter && nextHunter !== prevHunter) {
-    accounts[key].assignedAt = Date.now()
-  } else if (!nextHunter) {
-    accounts[key].assignedAt = null
-  }
-  saveMerchantAccounts(accounts)
+async function saveMerchant() {
+  const m = editMerchant.value
+  const prevHunter = allMerchants.value.find(x => x.email === m.email)?.assignedEggHunter || ''
+  const nextHunter = m.assignedEggHunter || ''
+  const assignedAt = nextHunter && nextHunter !== prevHunter ? Date.now() : (nextHunter ? m.assignedAt : null)
+  const data = { info: m.info, credits: m.credits, assignedEggHunter: nextHunter, assignedAt }
+  await MerchantDB.saveData(m.email, data, m.status)
   editMerchant.value = null
+  await loadMerchants()
   showToast('✅ Merchant saved!')
+}
+async function deleteMerchant(m) {
+  if (!confirm(`Delete merchant ${m.info?.name}?`)) return
+  await MerchantDB.delete(m.email)
+  await loadMerchants()
+  showToast('🗑 Merchant deleted.')
 }
 
 // ── EGG HUNTERS (SALES TEAM) ──
-function getEggHunterAccounts()   { return JSON.parse(localStorage.getItem('eggHunterAccounts') || '{}') }
-function saveEggHunterAccounts(o) { localStorage.setItem('eggHunterAccounts', JSON.stringify(o)) }
-
 const editHunter = ref(null)
-const allHunters = computed(() => {
-  tick.value
-  const raw = getEggHunterAccounts()
-  return Object.entries(raw).map(([email, d]) => ({ email, ...d }))
-})
-const rawHunterData = computed(() => {
-  tick.value
-  return localStorage.getItem('eggHunterAccounts') || '(empty)'
-})
+const allHunters = ref([])
+async function loadHunters() {
+  try {
+    const rows = await HunterDB.list()
+    allHunters.value = Array.isArray(rows) ? rows.map(h => ({ email: h.email, name: h.name, code: h.code || '', password: h.password || '' })) : []
+  } catch { showToast('⚠️ Could not load sales team') }
+}
 function hunterMerchantCount(email) {
-  const accounts = getMerchantAccounts()
-  return Object.values(accounts).filter(m => m.assignedEggHunter === email).length
+  return allMerchants.value.filter(m => m.assignedEggHunter === email).length
 }
 function openAddHunter() {
   editHunter.value = { _isNew: true, name: '', email: '', password: '', code: '' }
 }
 function openEditHunter(h) {
-  editHunter.value = { ...h, password: '' }
+  editHunter.value = { ...h }
 }
-function saveHunter() {
+async function saveHunter() {
   const h = editHunter.value
   if (!h.name || !h.email) { showToast('⚠️ Name and email are required.'); return }
-  const accounts = getEggHunterAccounts()
-  const key = h.email.toLowerCase().trim()
-  if (h._isNew && accounts[key]) { showToast('⚠️ Email already exists.'); return }
   if (h._isNew && !h.password) { showToast('⚠️ Password is required.'); return }
-  accounts[key] = {
-    name:     h.name,
-    code:     h.code || '',
-    password: h.password || accounts[key]?.password || '',
-  }
-  saveEggHunterAccounts(accounts)
+  await HunterDB.create({ email: h.email.toLowerCase().trim(), name: h.name, code: h.code || '', password: h.password })
   editHunter.value = null
+  await loadHunters()
   showToast('✅ Sales rep saved! Use 🔗 Setup Link to activate on their browser.')
 }
-function deleteHunter(h) {
+async function deleteHunter(h) {
   if (!confirm(`Delete sales rep ${h.name}? This cannot be undone.`)) return
-  const accounts = getEggHunterAccounts()
-  delete accounts[h.email]
-  saveEggHunterAccounts(accounts)
+  await HunterDB.delete(h.email)
+  await loadHunters()
   showToast('🗑 Sales rep deleted.')
 }
+
+onMounted(() => {
+  loadPlayers()
+  loadMerchants()
+  loadHunters()
+})
 function copySetupLink(h) {
   const payload = btoa(JSON.stringify({ email: h.email, name: h.name, code: h.code || '', password: h.password }))
   const url = `${window.location.origin}/egghunter/login?setup=${payload}`
@@ -1427,7 +1456,7 @@ async function uploadFile(e, field) {
 }
 function saveBranding() { localStorage.setItem('adminBranding', JSON.stringify(branding.value)); showToast('✅ Branding saved!') }
 
-// ── SUMMARY (inherits liveness from allPlayers which uses tick) ──
+// ── SUMMARY ──
 const totalCash     = computed(() => allPlayers.value.reduce((s,p) => s + Number(p.user.cash||0), 0).toFixed(2))
 const totalGems     = computed(() => allPlayers.value.reduce((s,p) => s + Number(p.user.gems||0), 0))
 const totalEggs     = computed(() => allPlayers.value.reduce((s,p) => s + (p.eggs||[]).length, 0))
@@ -1445,36 +1474,35 @@ const accSummary = computed(() => [
 function getAllPendingEggs() { return JSON.parse(localStorage.getItem('pendingEggs') || '[]') }
 function saveAllPendingEggs(a) { localStorage.setItem('pendingEggs', JSON.stringify(a)) }
 
-const disputedEggs     = computed(() => { tick.value; return getAllPendingEggs().filter(e => e.status === 'disputed') })
-const resolvedDisputes = computed(() => { tick.value; return getAllPendingEggs().filter(e => e.status === 'dispute_approved' || e.status === 'dispute_rejected').slice().reverse() })
+const disputedEggs     = computed(() => getAllPendingEggs().filter(e => e.status === 'disputed'))
+const resolvedDisputes = computed(() => getAllPendingEggs().filter(e => e.status === 'dispute_approved' || e.status === 'dispute_rejected').slice().reverse())
 
-function approveDispute(egg) {
-  if (!confirm(`Approve dispute for ${egg.playerName}? This will remove their egg and refund ${egg.credits} credits to ${egg.merchantName}.`)) return
-  // Remove egg from player
-  const playerAccounts = getPlayerAccounts()
-  if (playerAccounts[egg.playerEmail] && egg.addedEggId) {
-    playerAccounts[egg.playerEmail].eggs = (playerAccounts[egg.playerEmail].eggs || []).filter(e => e.id !== egg.addedEggId)
-    // Notify player
-    const notifs = playerAccounts[egg.playerEmail].notifications || []
-    const notifId = notifs.length ? Math.max(...notifs.map(n => n.id||0)) + 1 : 1
-    notifs.push({ id: notifId, icon: '⚠️', title: 'Egg Removed (Dispute)',
+async function approveDispute(egg) {
+  if (!confirm(`Approve dispute for ${egg.playerName}? This will remove their egg from the record.`)) return
+  // Update egg in player DB data
+  const player = allPlayers.value.find(p => p.email === egg.playerEmail)
+  if (player && egg.addedEggId) {
+    const updatedEggs = (player.eggs || []).filter(e => e.id !== egg.addedEggId)
+    const notifs = [...(player.notifications || [])]
+    notifs.push({ id: Date.now(), icon: '⚠️', title: 'Egg Removed (Dispute)',
       body: `Admin reviewed a dispute from ${egg.merchantName} and approved it. Your ${egg.eggTier} egg has been removed.`,
       time: new Date().toLocaleString(), read: false })
-    playerAccounts[egg.playerEmail].notifications = notifs
-    savePlayerAccounts(playerAccounts)
+    await PlayerDB.saveData(player.email, { ...player, eggs: updatedEggs, notifications: notifs })
+    await loadPlayers()
   }
-  // Refund credits to merchant
-  const mAccounts = getMerchantAccounts()
-  if (mAccounts[egg.merchantEmail]) {
-    mAccounts[egg.merchantEmail].credits = (mAccounts[egg.merchantEmail].credits || 0) + egg.credits
-    saveMerchantAccounts(mAccounts)
+  // Update merchant credits in DB
+  const merchant = allMerchants.value.find(m => m.email === egg.merchantEmail)
+  if (merchant) {
+    const data = { info: merchant.info, credits: (merchant.credits || 0) + (egg.credits || 0), assignedEggHunter: merchant.assignedEggHunter, assignedAt: merchant.assignedAt }
+    await MerchantDB.saveData(merchant.email, data, merchant.status)
+    await loadMerchants()
   }
-  // Update status
+  // Update status in localStorage
   const all = getAllPendingEggs()
   const idx = all.findIndex(e => e.id === egg.id)
   if (idx >= 0) { all[idx].status = 'dispute_approved'; all[idx].resolvedAt = new Date().toLocaleString() }
   saveAllPendingEggs(all)
-  showToast('✅ Dispute approved — egg removed, credits refunded.')
+  showToast('✅ Dispute approved — egg removed.')
 }
 
 function rejectDispute(egg) {
@@ -1489,7 +1517,6 @@ function rejectDispute(egg) {
 // ── SUPPORT CHATS ──
 const selectedThread = ref(null)
 const supportThreads = computed(() => {
-  tick.value // live
   const all = JSON.parse(localStorage.getItem('allSupportChats') || '{}')
   return Object.entries(all).map(([key, v]) => ({ key, ...v }))
     .sort((a, b) => (b.lastTime || '').localeCompare(a.lastTime || ''))

@@ -182,10 +182,10 @@ app.post('/api/egghunter/login', async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Server error' }) }
 })
 
-// List all egg hunters (admin)
+// List all egg hunters with password (admin — needed for setup link generation)
 app.get('/api/egghunters', async (req, res) => {
   try {
-    const rows = await sql`SELECT email, name, code, data, created_at FROM egg_hunters ORDER BY created_at DESC`
+    const rows = await sql`SELECT email, name, password, code, data, created_at FROM egg_hunters ORDER BY created_at DESC`
     res.json(rows)
   } catch (err) { res.status(500).json({ error: 'Server error' }) }
 })
@@ -194,6 +194,22 @@ app.get('/api/egghunters', async (req, res) => {
 app.delete('/api/egghunter/:email', async (req, res) => {
   try {
     await sql`DELETE FROM egg_hunters WHERE email = ${req.params.email.toLowerCase()}`
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: 'Server error' }) }
+})
+
+// Delete player (admin)
+app.delete('/api/player/:email', async (req, res) => {
+  try {
+    await sql`DELETE FROM players WHERE email = ${req.params.email.toLowerCase()}`
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: 'Server error' }) }
+})
+
+// Delete merchant (admin)
+app.delete('/api/merchant/:email', async (req, res) => {
+  try {
+    await sql`DELETE FROM merchants WHERE email = ${req.params.email.toLowerCase()}`
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: 'Server error' }) }
 })

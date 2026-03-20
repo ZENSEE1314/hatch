@@ -29,6 +29,7 @@ export const PlayerDB = {
   get:      (email) => get(`/api/player/${encodeURIComponent(email)}`),
   saveData: (email, data) => put(`/api/player/${encodeURIComponent(email)}/data`, { data }),
   list:     () => get('/api/players'),
+  delete:   (email) => del(`/api/player/${encodeURIComponent(email)}`),
 }
 
 // ── MERCHANTS ────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ export const MerchantDB = {
   get:      (email) => get(`/api/merchant/${encodeURIComponent(email)}`),
   saveData: (email, data, status) => put(`/api/merchant/${encodeURIComponent(email)}/data`, { data, status }),
   list:     () => get('/api/merchants'),
+  delete:   (email) => del(`/api/merchant/${encodeURIComponent(email)}`),
 }
 
 // ── EGG HUNTERS ──────────────────────────────────────────────────────────────
