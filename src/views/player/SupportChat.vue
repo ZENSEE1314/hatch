@@ -253,7 +253,7 @@ function getAIReply(text) {
 
   // Earnings / cash / withdraw / payout
   if (t.match(/earn|cash|money|payout|withdraw|withdrawal|how much|reward/)) {
-    return `💵 **Earnings & Withdrawals**\n\n**How you earn:**\n🏪 Spend at merchants → **50% of purchase value** (after tax) unlocks through feeding\n📋 Complete quests → cash + gem rewards\n🍖 Feed monsters daily → unlock your safebox rewards\n🎉 Attend special events → bonus eggs + cash\n\n**Withdrawing:**\n• Minimum withdrawal: **$50**\n• Go to **Profile → Withdraw**\n• Processing: 3–5 business days\n\n**Your balance:** ${{ (playerStore.user.cash || 0).toFixed(2) }}\n\nKeep feeding and completing quests to grow your rewards! 🚀`
+    return `💵 **Earnings & Withdrawals**\n\n**How you earn:**\n🏪 Spend at merchants → **50% of purchase value** (after tax) unlocks through feeding\n📋 Complete quests → cash + gem rewards\n🍖 Feed monsters daily → unlock your safebox rewards\n🎉 Attend special events → bonus eggs + cash\n\n**Withdrawing:**\n• Minimum withdrawal: **$50**\n• Go to **Profile → Withdraw**\n• Processing: 3–5 business days\n\n**Your balance:** $${ (playerStore.user.cash || 0).toFixed(2) }\n\nKeep feeding and completing quests to grow your rewards! 🚀`
   }
 
   // Payment / do I need to pay
