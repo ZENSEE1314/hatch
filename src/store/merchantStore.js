@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { MerchantDB } from '@/api/db.js'
 
 const CURRENCY_MAP = {
   SG:'SGD', MY:'MYR', ID:'IDR', TH:'THB', PH:'PHP',
@@ -112,8 +113,7 @@ export const merchantStore = reactive({
   save() {
     const key = localStorage.getItem('merchantAuth')
     if (!key) return
-    const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
-    accounts[key] = {
+    const snapshot = {
       info:              this.info,
       referralCode:      this.referralCode,
       assignedEggHunter: this.assignedEggHunter,
@@ -122,9 +122,12 @@ export const merchantStore = reactive({
       topupHistory:      this.topupHistory,
       ads:               this.ads,
       status:            this.status,
-      passwordHash:      (accounts[key] || {}).passwordHash || '',
     }
+    const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
+    accounts[key] = { ...snapshot, passwordHash: (accounts[key] || {}).passwordHash || '' }
     localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
+    // Sync to DB so admin credits changes + cross-device state stay in sync
+    MerchantDB.saveData(key, snapshot).catch(() => {})
   },
 
   topup(credits, amountSGD) {

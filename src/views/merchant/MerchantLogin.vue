@@ -173,14 +173,30 @@ async function submit() {
     } else {
       const res = await MerchantDB.login({ email: form.value.email, password: form.value.password })
       if (res.error) { error.value = res.error; return }
-      // Sync local store
-      const localResult = merchantStore.login(form.value.email, form.value.password)
-      if (localResult.error) {
-        merchantStore.register(res.merchant.store, res.merchant.country, res.merchant.phone, res.merchant.email, form.value.password, res.merchant.referralCode || '')
+      const email = res.merchant.email
+      if (res.merchant.data) {
+        // Restore full store data from DB (includes credits added by admin)
+        const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
+        accounts[email] = { ...res.merchant.data, passwordHash: form.value.password }
+        localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
+        localStorage.setItem('merchantAuth', email)
+        merchantStore._apply(res.merchant.data)
+      } else {
+        const localResult = merchantStore.login(form.value.email, form.value.password)
+        if (localResult.error) {
+          merchantStore.register(res.merchant.store, res.merchant.country, res.merchant.phone, email, form.value.password, res.merchant.referralCode || '')
+        }
+        // Save current state to DB so future logins restore correctly
+        MerchantDB.saveData(email, {
+          info: merchantStore.info, credits: merchantStore.credits,
+          scans: merchantStore.scans, topupHistory: merchantStore.topupHistory,
+          ads: merchantStore.ads, status: merchantStore.status,
+          referralCode: merchantStore.referralCode, assignedEggHunter: merchantStore.assignedEggHunter,
+        }).catch(() => {})
       }
       if (rememberMe.value) localStorage.setItem('merchantRemember', form.value.email)
       else localStorage.removeItem('merchantRemember')
-      router.push('/merchant/dashboard')
+      router.push(res.merchant.data?.status === 'approved' || merchantStore.status === 'approved' ? '/merchant/dashboard' : '/merchant/pending')
     }
   } catch {
     error.value = 'Connection error. Please check your internet.'

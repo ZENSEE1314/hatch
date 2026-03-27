@@ -12,8 +12,7 @@
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
-        <div class="tier-badge">{{ merchantStore.info?.tier || 'Bronze' }}</div>
-        <div class="credits-pill">💳 {{ merchantStore.credits.toLocaleString() }}</div>
+        <div class="credits-pill">💳 {{ merchantStore.credits.toLocaleString() }} credits</div>
       </div>
     </div>
 
@@ -201,6 +200,7 @@
         </div>
 
         <div style="padding:0 16px">
+          <!-- Pack selection -->
           <div class="pack-grid">
             <div v-for="p in CREDIT_PACKS" :key="p.credits"
               class="pack-card" :class="{ selected: selectedPack?.credits === p.credits }"
@@ -218,11 +218,35 @@
             <div class="topup-sum-row" style="opacity:.6;font-size:11px"><span>Rate</span><span>S$1 per credit · No discount</span></div>
           </div>
 
+          <!-- Payment method buttons -->
+          <div v-if="selectedPack" class="payment-method-row">
+            <div class="pay-label">Choose Payment Method</div>
+            <button class="pay-method-btn bank-btn" @click="openBankTransfer">
+              🏦 Bank Transfer
+              <span class="pay-method-sub">Upload receipt</span>
+            </button>
+            <button class="pay-method-btn stripe-btn" @click="openStripe">
+              💳 Credit / Debit Card
+              <span class="pay-method-sub">Pay securely online</span>
+            </button>
+          </div>
+
           <div v-if="topupSuccess" class="topup-success">✅ {{ topupSuccess }}</div>
 
-          <button class="btn-topup" :disabled="!selectedPack" @click="confirmTopup">
-            💳 Buy {{ selectedPack ? selectedPack.credits.toLocaleString() + ' Credits for S$' + Number(selectedPack.price).toLocaleString() : 'Credits' }} →
-          </button>
+          <!-- Top-up history -->
+          <div v-if="merchantStore.topupHistory.length" style="margin-top:16px">
+            <div style="font-size:12px;font-weight:800;color:#5a6080;margin-bottom:8px">Recent Top-Ups</div>
+            <div class="hist-item" v-for="t in merchantStore.topupHistory.slice(0,5)" :key="t.id">
+              <div>
+                <div class="hist-title">{{ t.credits.toLocaleString() }} credits</div>
+                <div class="hist-meta">{{ t.date }} · {{ t.method || 'Bank Transfer' }}</div>
+              </div>
+              <div>
+                <div class="hist-amount" style="color:#00695c">+{{ t.credits.toLocaleString() }}</div>
+                <div class="hist-credits" style="color:#0277bd">S${{ t.amountSGD }}</div>
+              </div>
+            </div>
+          </div>
 
           <!-- How credits are used -->
           <div class="credit-usage-card">
@@ -235,9 +259,6 @@
             <div class="cu-row"><span>🥚 Gold egg (customer buys S$100)</span><span><strong>30 credits</strong></span></div>
             <div class="cu-row"><span>🥚 Diamond egg (customer buys S$100)</span><span><strong>35 credits</strong></span></div>
             <div class="cu-row"><span>🥚 Mystic egg (customer buys S$100)</span><span><strong>40 credits</strong></span></div>
-            <div class="cu-row" style="opacity:.6;font-size:10px;border-top:1px dashed #e8eaf0;padding-top:6px;margin-top:2px">
-              <span>Tax deducted from credits charged when enabled</span>
-            </div>
           </div>
         </div>
       </div>
@@ -320,18 +341,6 @@
               placeholder="Tell customers about your store…" style="resize:none" />
           </div>
 
-          <!-- Egg Tier Reward -->
-          <div class="settings-card">
-            <div class="set-label">🥚 Egg Tier Reward <span class="set-hint">— given to customers on purchase</span></div>
-            <div class="tier-picker">
-              <div v-for="t in TIERS" :key="t"
-                class="tier-pill" :class="['tier-'+t.toLowerCase(), settings.eggTier===t ? 'tier-active':'']"
-                @click="settings.eggTier = t">
-                {{ t }}
-              </div>
-            </div>
-          </div>
-
           <!-- Tax Toggle -->
           <div class="settings-card">
             <div class="set-label">🧾 Transaction Tax</div>
@@ -357,7 +366,7 @@
             <div class="set-label" style="color:#5e35b1">💰 Credit Deduction Preview (per S$100 sale)</div>
             <div class="fee-row"><span>Customer pays</span><strong>S$100.00</strong></div>
             <div class="fee-row">
-              <span>🥚 {{ settings.eggTier }} egg tier ({{ (sampleDeduction.pct*100).toFixed(0) }}%)</span>
+              <span>🥚 Egg reward ({{ (sampleDeduction.pct*100).toFixed(0) }}%)</span>
               <strong>S${{ sampleDeduction.gross.toFixed(2) }}</strong>
             </div>
             <div class="fee-row" v-if="settings.taxEnabled" style="color:#00695c">
@@ -470,6 +479,89 @@
       </div>
     </div>
 
+    <!-- ═══ BANK TRANSFER MODAL ═══ -->
+    <div v-if="bankModal" class="modal-overlay" @click.self="bankModal=false">
+      <div class="modal-box">
+        <div class="modal-title">🏦 Bank Transfer <span class="modal-close" @click="bankModal=false">✕</span></div>
+        <div class="topup-sum-row" style="margin-bottom:14px">
+          <span>Amount to transfer</span><strong style="color:#00897b">S${{ Number(selectedPack?.price||0).toLocaleString() }}</strong>
+        </div>
+
+        <div class="bank-details-card">
+          <div class="bd-title">Transfer to this account</div>
+          <div class="bd-row"><span>Bank</span><strong>DBS Bank Singapore</strong></div>
+          <div class="bd-row"><span>Account Name</span><strong>HATCHME PTE LTD</strong></div>
+          <div class="bd-row"><span>Account No.</span><strong>028-902345-6</strong></div>
+          <div class="bd-row"><span>Reference</span><strong>{{ merchantEmail }}</strong></div>
+          <div style="font-size:10px;color:#e65100;margin-top:8px;font-weight:700">⚠️ Include your email as the payment reference</div>
+        </div>
+
+        <div class="mfield" style="margin-top:14px">
+          <label>Upload Payment Receipt <span style="color:#e65100;font-size:10px">Required</span></label>
+          <div style="margin-top:8px">
+            <img v-if="bankReceipt" :src="bankReceipt" style="width:100%;max-height:160px;object-fit:contain;border-radius:10px;border:2px solid #e8f5e9;margin-bottom:8px" />
+            <label class="upload-btn" style="display:inline-block">
+              📷 {{ bankReceipt ? 'Change Receipt' : 'Upload Screenshot' }}
+              <input type="file" accept="image/*" style="display:none" @change="uploadReceipt" />
+            </label>
+          </div>
+        </div>
+
+        <div v-if="bankError" class="error-msg">{{ bankError }}</div>
+        <div class="modal-footer">
+          <button class="btn-gray" @click="bankModal=false">Cancel</button>
+          <button class="btn-primary" style="background:#00897b" @click="submitBankTransfer" :disabled="bankSubmitting">
+            {{ bankSubmitting ? 'Submitting...' : '📤 Submit for Review →' }}
+          </button>
+        </div>
+        <div style="font-size:10px;color:#aaa;text-align:center;margin-top:10px">Credits will be added within 1 business day after admin verification.</div>
+      </div>
+    </div>
+
+    <!-- ═══ STRIPE / CARD MODAL ═══ -->
+    <div v-if="stripeModal" class="modal-overlay" @click.self="stripeModal=false">
+      <div class="modal-box">
+        <div class="modal-title">💳 Card Payment <span class="modal-close" @click="stripeModal=false">✕</span></div>
+        <div class="topup-sum-row" style="margin-bottom:16px">
+          <span>{{ selectedPack?.credits?.toLocaleString() }} credits</span>
+          <strong style="color:#5e35b1">S${{ Number(selectedPack?.price||0).toLocaleString() }}</strong>
+        </div>
+
+        <div class="mfield">
+          <label>Card Number</label>
+          <input class="minput" v-model="card.number" placeholder="1234 5678 9012 3456" maxlength="19"
+            @input="card.number = card.number.replace(/\D/g,'').replace(/(.{4})/g,'$1 ').trim()" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="mfield">
+            <label>Expiry</label>
+            <input class="minput" v-model="card.expiry" placeholder="MM/YY" maxlength="5"
+              @input="card.expiry = card.expiry.replace(/\D/g,'').replace(/^(\d{2})(\d)/,'$1/$2')" />
+          </div>
+          <div class="mfield">
+            <label>CVC</label>
+            <input class="minput" v-model="card.cvc" placeholder="123" maxlength="4" type="password" />
+          </div>
+        </div>
+        <div class="mfield">
+          <label>Name on Card</label>
+          <input class="minput" v-model="card.name" placeholder="JOHN DOE" style="text-transform:uppercase" />
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;font-size:10px;color:#888;margin:8px 0;font-weight:700">
+          🔒 Secured by Stripe · 256-bit SSL encryption
+        </div>
+
+        <div v-if="stripeError" class="error-msg">{{ stripeError }}</div>
+        <div class="modal-footer">
+          <button class="btn-gray" @click="stripeModal=false">Cancel</button>
+          <button class="btn-primary" style="background:#5e35b1" @click="submitCard" :disabled="cardProcessing">
+            {{ cardProcessing ? 'Processing...' : `Pay S$${Number(selectedPack?.price||0).toLocaleString()} →` }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -477,19 +569,34 @@
 import { ref, computed, reactive, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { merchantStore } from '@/store/merchantStore.js'
+import { MerchantDB } from '@/api/db.js'
 import { useAutoRefresh } from '@/composables/useAutoRefresh.js'
 
 const router = useRouter()
 merchantStore.load()
 
-// ── LIVE REFRESH every 1.5 s ──
-const tick = useAutoRefresh(1500)
+// ── LIVE REFRESH every 30 s — reloads from DB so admin credit changes appear ──
+const tick = useAutoRefresh(30000)
 const liveToast = ref('')
+
+async function refreshFromDB() {
+  try {
+    const res = await MerchantDB.get(merchantEmail)
+    if (res?.data) {
+      merchantStore._apply(res.data)
+      // Sync back to localStorage
+      const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
+      accounts[merchantEmail] = { ...res.data, passwordHash: (accounts[merchantEmail] || {}).passwordHash || '' }
+      localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
+    }
+  } catch { /* offline — keep local data */ }
+}
+refreshFromDB() // immediate on mount
 
 // Reload store + check for new pending eggs on every tick
 let prevPendingCount = 0
-watch(tick, () => {
-  merchantStore.load()
+watch(tick, async () => {
+  await refreshFromDB()
   const count = pendingEggsList.value.length
   if (count > prevPendingCount && prevPendingCount >= 0) {
     liveToast.value = `🥚 New pending approval! (${count} waiting)`
@@ -555,6 +662,69 @@ function calcDeduction(purchaseAmt, eggTier, taxEnabled) {
 const selectedPack = ref(null)
 const topupSuccess = ref('')
 
+// ── BANK TRANSFER ──
+const bankModal     = ref(false)
+const bankReceipt   = ref('')
+const bankError     = ref('')
+const bankSubmitting= ref(false)
+
+function openBankTransfer() { bankModal.value = true; bankReceipt.value = ''; bankError.value = '' }
+function uploadReceipt(e) {
+  const file = e.target.files[0]; if (!file) return
+  const r = new FileReader()
+  r.onload = ev => { bankReceipt.value = ev.target.result }
+  r.readAsDataURL(file)
+}
+async function submitBankTransfer() {
+  if (!bankReceipt.value) { bankError.value = 'Please upload your payment receipt.'; return }
+  bankSubmitting.value = true
+  try {
+    const req = {
+      id: Date.now(), type: 'bank_transfer', credits: selectedPack.value.credits,
+      amountSGD: selectedPack.value.price, receipt: bankReceipt.value,
+      status: 'pending', submittedAt: new Date().toLocaleString(),
+    }
+    const existing = merchantStore.info?.pendingTopups || []
+    if (!merchantStore.info) merchantStore.info = {}
+    merchantStore.info.pendingTopups = [...existing, req]
+    await merchantStore.save()
+    bankModal.value = false
+    selectedPack.value = null
+    topupSuccess.value = '✅ Transfer submitted! Credits will be added after admin verification (within 1 business day).'
+    setTimeout(() => { topupSuccess.value = '' }, 6000)
+  } catch { bankError.value = 'Submission failed. Please try again.' }
+  finally { bankSubmitting.value = false }
+}
+
+// ── STRIPE / CARD ──
+const stripeModal    = ref(false)
+const stripeError    = ref('')
+const cardProcessing = ref(false)
+const card           = reactive({ number:'', expiry:'', cvc:'', name:'' })
+
+function openStripe() { stripeModal.value = true; stripeError.value = ''; Object.assign(card,{number:'',expiry:'',cvc:'',name:''}) }
+async function submitCard() {
+  stripeError.value = ''
+  if (!card.number.replace(/\s/g,'') || card.number.replace(/\s/g,'').length < 16) { stripeError.value = 'Please enter a valid 16-digit card number.'; return }
+  if (!card.expiry || card.expiry.length < 5) { stripeError.value = 'Please enter a valid expiry date.'; return }
+  if (!card.cvc || card.cvc.length < 3) { stripeError.value = 'Please enter a valid CVC.'; return }
+  if (!card.name.trim()) { stripeError.value = 'Please enter the name on your card.'; return }
+  cardProcessing.value = true
+  const pack = selectedPack.value
+  // Simulate payment processing delay
+  await new Promise(r => setTimeout(r, 2000))
+  try {
+    merchantStore.topup(pack.credits, pack.price)
+    if (merchantStore.topupHistory[0]) merchantStore.topupHistory[0].method = 'Card'
+    merchantStore.save()
+    stripeModal.value = false
+    selectedPack.value = null
+    topupSuccess.value = `✅ Payment successful! ${pack.credits.toLocaleString()} credits added to your account.`
+    setTimeout(() => { topupSuccess.value = '' }, 5000)
+  } catch { stripeError.value = 'Payment failed. Please try again.' }
+  finally { cardProcessing.value = false }
+}
+
 const totalRevenue = computed(() =>
   merchantStore.scans.reduce((s, x) => s + (x.amountSGD || 0), 0).toFixed(2)
 )
@@ -578,13 +748,6 @@ function copyCode(code) {
   setTimeout(() => { copied.value = false }, 2000)
 }
 
-function confirmTopup() {
-  if (!selectedPack.value) return
-  merchantStore.topup(selectedPack.value.credits, selectedPack.value.price)
-  topupSuccess.value = `Added ${selectedPack.value.credits.toLocaleString()} credits!`
-  selectedPack.value = null
-  setTimeout(() => { topupSuccess.value = '' }, 3000)
-}
 
 // ── SETTINGS ──
 const settings = reactive({
@@ -915,8 +1078,18 @@ function logout() {
 .pack-rate    { font-size:10px; font-weight:700; color:#90a4ae; margin-top:4px; }
 .topup-summary { background:#e0f2f1; border-radius:12px; padding:12px 16px; margin-bottom:12px; font-size:13px; font-weight:700; color:#00695c; }
 .topup-success { background:#e8f5e9; border-radius:10px; padding:10px 14px; font-size:12px; font-weight:800; color:#2e7d32; text-align:center; margin-bottom:8px; }
-.btn-topup    { width:100%; padding:15px; border-radius:14px; background:#00897b; color:#fff; font-size:14px; font-weight:800; border:none; cursor:pointer; font-family:'Nunito',sans-serif; margin-bottom:16px; }
-.btn-topup:disabled { opacity:.5; cursor:not-allowed; }
+.payment-method-row { margin-bottom:16px; }
+.pay-label { font-size:12px; font-weight:800; color:#5a6080; margin-bottom:8px; }
+.pay-method-btn { width:100%; padding:14px 16px; border-radius:14px; border:2px solid; cursor:pointer; font-family:'Nunito',sans-serif; font-size:14px; font-weight:800; text-align:left; display:flex; flex-direction:column; gap:2px; margin-bottom:8px; transition:all .15s; }
+.pay-method-sub { font-size:10px; font-weight:600; opacity:.75; }
+.bank-btn { background:#e8f5e9; border-color:#00897b; color:#00695c; }
+.bank-btn:hover { background:#c8e6c9; }
+.stripe-btn { background:#ede7ff; border-color:#7c4dff; color:#4527a0; }
+.stripe-btn:hover { background:#d1c4e9; }
+.bank-details-card { background:#f1f8e9; border:2px solid #a5d6a7; border-radius:14px; padding:14px 16px; }
+.bd-title { font-size:11px; font-weight:800; color:#2e7d32; margin-bottom:8px; text-transform:uppercase; letter-spacing:.5px; }
+.bd-row { display:flex; justify-content:space-between; font-size:12px; font-weight:700; padding:4px 0; border-bottom:1px solid rgba(0,0,0,.06); color:#1a1f3c; }
+.bd-row:last-child { border:none; }
 
 /* ADS */
 .ads-info-bar { background:#ede7ff; padding:10px 16px; font-size:12px; font-weight:700; color:#5e35b1; }

@@ -61,18 +61,17 @@
       </div>
       <div class="table-wrap">
         <table class="acc-table">
-          <thead><tr><th>#</th><th>Store</th><th>Email</th><th>Tier</th><th>Credits</th><th>Scans</th><th>Status</th></tr></thead>
+          <thead><tr><th>#</th><th>Store</th><th>Email</th><th>Credits</th><th>Scans</th><th>Status</th></tr></thead>
           <tbody>
             <tr v-for="(m,i) in allMerchants" :key="m.email">
               <td class="td-num">{{ i+1 }}</td>
               <td><strong>🏪 {{ m.info?.name||'—' }}</strong></td>
               <td class="td-email">{{ m.email }}</td>
-              <td><span class="tier-chip" :class="'tier-'+(m.info?.tier||'bronze').toLowerCase()">{{ m.info?.tier||'Bronze' }}</span></td>
               <td class="td-cash">{{ m.credits }}</td>
               <td class="td-center">{{ m.scans?.length||0 }}</td>
               <td><span class="st-chip" :class="m.status==='approved'?'st-ok':'st-pend'">{{ m.status }}</span></td>
             </tr>
-            <tr v-if="allMerchants.length===0"><td colspan="7" class="empty-cell">No merchants.</td></tr>
+            <tr v-if="allMerchants.length===0"><td colspan="6" class="empty-cell">No merchants.</td></tr>
           </tbody>
         </table>
       </div>
@@ -146,7 +145,7 @@
         </div>
         <div class="table-wrap">
           <table class="acc-table">
-            <thead><tr><th>#</th><th>Store</th><th>Email</th><th>Phone</th><th>Country</th><th>Currency</th><th>Tier</th><th>Credits</th><th>Egg Hunter</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Store</th><th>Email</th><th>Phone</th><th>Country</th><th>Currency</th><th>Credits</th><th>Egg Hunter</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               <tr v-for="(m,i) in allMerchants" :key="m.email" :class="{ 'row-pending': m.status==='pending' }">
                 <td class="td-num">{{ i+1 }}</td>
@@ -155,7 +154,6 @@
                 <td class="td-email">{{ m.info?.phone||'—' }}</td>
                 <td class="td-center">{{ m.info?.country||'—' }}</td>
                 <td class="td-center">{{ m.info?.currency||'—' }}</td>
-                <td><span class="tier-chip" :class="'tier-'+(m.info?.tier||'bronze').toLowerCase()">{{ m.info?.tier||'Bronze' }}</span></td>
                 <td class="td-cash">{{ m.credits }}</td>
                 <td>
                   <span v-if="m.assignedEggHunter" class="egg-hunter-chip">🥚 {{ m.assignedEggHunter.split('@')[0] }}</span>
@@ -739,14 +737,6 @@
 
         <div class="form-row">
           <div class="form-group"><label>Store Name</label><input class="form-input" v-model="editMerchant.info.name" /></div>
-          <div class="form-group">
-            <label>Tier</label>
-            <select class="form-input" v-model="editMerchant.info.tier">
-              <option v-for="t in TIERS" :key="t">{{ t }}</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-row">
           <div class="form-group"><label>Credits</label><input class="form-input" type="number" v-model.number="editMerchant.credits" /></div>
           <div class="form-group">
             <label>Status</label>
