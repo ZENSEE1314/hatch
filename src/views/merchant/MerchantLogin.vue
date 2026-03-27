@@ -174,10 +174,11 @@ async function submit() {
       const res = await MerchantDB.login({ email: form.value.email, password: form.value.password })
       if (res.error) { error.value = res.error; return }
       const email = res.merchant.email
+      const dbStatus = res.merchant.status  // authoritative status from DB column
       if (res.merchant.data) {
         // Restore full store data from DB (includes credits added by admin)
         const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
-        accounts[email] = { ...res.merchant.data, passwordHash: form.value.password }
+        accounts[email] = { ...res.merchant.data, status: dbStatus, passwordHash: form.value.password }
         localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
         localStorage.setItem('merchantAuth', email)
         merchantStore._apply(res.merchant.data)
@@ -186,17 +187,18 @@ async function submit() {
         if (localResult.error) {
           merchantStore.register(res.merchant.store, res.merchant.country, res.merchant.phone, email, form.value.password, res.merchant.referralCode || '')
         }
-        // Save current state to DB so future logins restore correctly
         MerchantDB.saveData(email, {
           info: merchantStore.info, credits: merchantStore.credits,
           scans: merchantStore.scans, topupHistory: merchantStore.topupHistory,
-          ads: merchantStore.ads, status: merchantStore.status,
-          referralCode: merchantStore.referralCode, assignedEggHunter: merchantStore.assignedEggHunter,
+          ads: merchantStore.ads, referralCode: merchantStore.referralCode,
+          assignedEggHunter: merchantStore.assignedEggHunter,
         }).catch(() => {})
       }
+      // Always apply the authoritative status from DB (overrides anything in data blob)
+      merchantStore.status = dbStatus
       if (rememberMe.value) localStorage.setItem('merchantRemember', form.value.email)
       else localStorage.removeItem('merchantRemember')
-      router.push(res.merchant.data?.status === 'approved' || merchantStore.status === 'approved' ? '/merchant/dashboard' : '/merchant/pending')
+      router.push(dbStatus === 'approved' ? '/merchant/dashboard' : '/merchant/pending')
     }
   } catch {
     error.value = 'Connection error. Please check your internet.'

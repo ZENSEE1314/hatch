@@ -35,7 +35,39 @@
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { MerchantDB } from '@/api/db.js'
+import { merchantStore } from '@/store/merchantStore.js'
+
+const router = useRouter()
+const merchantEmail = localStorage.getItem('merchantAuth') || ''
+
+let pollTimer = null
+
+async function checkApproval() {
+  if (!merchantEmail) return
+  try {
+    const res = await MerchantDB.get(merchantEmail)
+    if (res?.status === 'approved') {
+      merchantStore.status = 'approved'
+      const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
+      if (accounts[merchantEmail]) {
+        accounts[merchantEmail].status = 'approved'
+        localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
+      }
+      router.push('/merchant/dashboard')
+    }
+  } catch { /* offline */ }
+}
+
+onMounted(() => {
+  checkApproval()
+  pollTimer = setInterval(checkApproval, 15000) // check every 15s
+})
+onUnmounted(() => clearInterval(pollTimer))
+</script>
 
 <style scoped>
 .merchant-page { min-height:100vh; background:linear-gradient(180deg,#e0f7f4 0%,#f5fffe 100%); }

@@ -582,13 +582,22 @@ const liveToast = ref('')
 async function refreshFromDB() {
   try {
     const res = await MerchantDB.get(merchantEmail)
-    if (res?.data) {
+    if (!res || res.error) return
+    if (res.data) {
       merchantStore._apply(res.data)
-      // Sync back to localStorage
-      const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
-      accounts[merchantEmail] = { ...res.data, passwordHash: (accounts[merchantEmail] || {}).passwordHash || '' }
-      localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
     }
+    // Status is a separate DB column — always override from the authoritative DB value
+    if (res.status) {
+      merchantStore.status = res.status
+    }
+    // Sync back to localStorage
+    const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
+    accounts[merchantEmail] = {
+      ...(res.data || {}),
+      status: res.status || merchantStore.status,
+      passwordHash: (accounts[merchantEmail] || {}).passwordHash || '',
+    }
+    localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
   } catch { /* offline — keep local data */ }
 }
 refreshFromDB() // immediate on mount
