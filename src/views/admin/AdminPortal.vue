@@ -1531,14 +1531,18 @@ async function approveMerchantAd(ma) {
   if (adIdx < 0) return
   merchant.ads[adIdx].adStatus = 'approved'
   merchant.ads[adIdx].active   = true
+  // Keep video in DB (small videos ≤7MB base64 are allowed)
+  const adsForDB = merchant.ads.map(a => {
+    const vid = a.video || ''
+    return vid.length <= 7 * 1024 * 1024 ? a : { ...a, video: '' }
+  })
   await MerchantDB.saveData(ma.merchantEmail, {
     info: merchant.info, credits: merchant.credits, scans: merchant.scans,
-    topupHistory: merchant.topupHistory, ads: merchant.ads.map(({ video: _v, ...rest }) => rest),
+    topupHistory: merchant.topupHistory, ads: adsForDB,
     referralCode: merchant.referralCode, assignedEggHunter: merchant.assignedEggHunter,
   })
-  // Add to global approved ads list (minus video — players will get video from merchant's data)
-  const { video, ...adMeta } = ma
-  ads.value.push({ ...adMeta, active: true, credits: ma.budget || 0, _source: 'merchant' })
+  // Add to global approved ads WITH video so players can see it
+  ads.value.push({ ...ma, active: true, credits: ma.budget || 0, _source: 'merchant' })
   await saveAdsStore()
   await loadMerchants()
   showToast('✅ Merchant ad approved and added to player feed!')
@@ -1551,9 +1555,10 @@ async function rejectMerchantAd(ma) {
   if (adIdx < 0) return
   merchant.ads[adIdx].adStatus = 'rejected'
   merchant.ads[adIdx].active   = false
+  const adsForDB2 = merchant.ads.map(a => (a.video||'').length <= 7*1024*1024 ? a : { ...a, video:'' })
   await MerchantDB.saveData(ma.merchantEmail, {
     info: merchant.info, credits: merchant.credits, scans: merchant.scans,
-    topupHistory: merchant.topupHistory, ads: merchant.ads.map(({ video: _v, ...rest }) => rest),
+    topupHistory: merchant.topupHistory, ads: adsForDB2,
     referralCode: merchant.referralCode, assignedEggHunter: merchant.assignedEggHunter,
   })
   await loadMerchants()

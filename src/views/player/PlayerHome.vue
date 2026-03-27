@@ -122,9 +122,10 @@
            class="monster-card"
            :class="m.status"
            @click="$router.push('/player/monsters')">
-        <div v-if="m.status === 'new'"    class="monster-badge" style="background:linear-gradient(135deg,#f9a825,#ff6f00)">New!</div>
-        <div v-if="m.status === 'fed'"    class="monster-badge" style="background:#4caf50">Fed!</div>
-        <div v-if="m.status === 'hungry'" class="monster-badge" style="background:#ff9800">Hungry!</div>
+        <div v-if="liveHp(m) === 100 && m.status === 'new'" class="monster-badge" style="background:linear-gradient(135deg,#f9a825,#ff6f00)">New!</div>
+        <div v-else-if="liveHp(m) === 100"                 class="monster-badge" style="background:#4caf50">Full!</div>
+        <div v-else-if="liveHp(m) > 0"                     class="monster-badge" style="background:#ff9800">{{ liveHp(m) }}%</div>
+        <div v-else                                         class="monster-badge" style="background:#e53935">Starving!</div>
         <div class="monster-face" v-html="getMonsterImage(m)"></div>
         <div class="monster-name">{{ m.name }}</div>
         <div class="monster-meta">{{ m.set }} · {{ m.tier }}</div>
@@ -132,7 +133,7 @@
           🔥 <span>{{ m.streak }}d</span>
         </div>
         <div class="monster-hp">
-          <div class="monster-hp-fill" :style="{ width: m.hp + '%', background: hpColor(m.hp) }"></div>
+          <div class="monster-hp-fill" :style="{ width: liveHp(m) + '%', background: hpColor(liveHp(m)) }"></div>
         </div>
       </div>
       <!-- View all tile -->

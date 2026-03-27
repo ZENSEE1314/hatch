@@ -589,9 +589,9 @@ async function refreshFromDB() {
     const localLogo = localStorage.getItem(`merchantLogo_${merchantEmail}`) || ''
     if (res.data) {
       merchantStore._apply(res.data)
-      // Restore videos and logo into the freshly-applied store
-      merchantStore.ads.forEach(a => { if (localAdVideos[a.id]) a.video = localAdVideos[a.id] })
+      // Restore logo (never in DB) and videos only when DB has none (large videos fall back to local)
       if (localLogo && merchantStore.info) merchantStore.info.logo = localLogo
+      merchantStore.ads.forEach(a => { if (!a.video && localAdVideos[a.id]) a.video = localAdVideos[a.id] })
     }
     // Status is a separate DB column — always override from the authoritative DB value
     if (res.status) merchantStore.status = res.status
@@ -828,7 +828,7 @@ function openEditAd(i) {
 function uploadAdVideo(e) {
   const file = e.target.files[0]
   if (!file) return
-  if (file.size > 500 * 1024 * 1024) { adError.value = 'Video must be under 500 MB.'; return }
+  if (file.size > 5 * 1024 * 1024) { adError.value = 'Video must be under 5 MB so it can be synced to players.'; return }
   const r = new FileReader()
   r.onload = ev => { adModal.value.video = ev.target.result }
   r.readAsDataURL(file)
