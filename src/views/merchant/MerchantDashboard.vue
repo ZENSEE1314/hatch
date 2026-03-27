@@ -289,6 +289,9 @@
                 :class="a.adStatus==='approved' ? 'approval-ok' : a.adStatus==='rejected' ? 'approval-rej' : 'approval-pend'">
                 {{ a.adStatus==='approved' ? '✅ Approved — Live' : a.adStatus==='rejected' ? '❌ Rejected by admin' : '⏳ Pending admin review' }}
               </div>
+              <div v-if="a.adStatus==='rejected'" style="font-size:10px;color:#c62828;font-weight:700;margin-top:4px;background:#fce4ec;border-radius:8px;padding:5px 8px">
+                Edit your ad below and tap <b>Resubmit</b> to send it back for review.
+              </div>
               <div class="ad-stats-row">
                 <span class="ad-stat-chip blue">Budget: {{ a.budget.toLocaleString() }} credits</span>
                 <span class="ad-stat-chip green">Used: {{ a.used || 0 }}</span>
@@ -302,7 +305,10 @@
               </div>
               <div class="ad-sub">{{ a.used||0 }} / {{ a.budget }} credits used</div>
               <div style="display:flex;gap:8px;margin-top:8px">
-                <button class="ad-btn ad-btn-edit" @click="openEditAd(i)">✏️ Edit</button>
+                <button v-if="a.adStatus==='rejected'"
+                  class="ad-btn" style="background:#e53935;color:#fff;border:none;flex:1"
+                  @click="openEditAd(i)">✏️ Edit & Resubmit</button>
+                <button v-else class="ad-btn ad-btn-edit" @click="openEditAd(i)">✏️ Edit</button>
                 <button class="ad-btn ad-btn-del" @click="deleteAd(i)">🗑</button>
               </div>
             </div>
@@ -437,7 +443,7 @@
     <!-- ═══ AD MODAL ═══ -->
     <div v-if="adModal" class="modal-overlay" @click.self="adModal=null">
       <div class="modal-box">
-        <div class="modal-title">{{ adModal._isNew ? '➕ New Ad Campaign' : '✏️ Edit Campaign' }}
+        <div class="modal-title">{{ adModal._isNew ? '➕ New Ad Campaign' : adModal.adStatus === 'rejected' ? '🔄 Edit & Resubmit' : '✏️ Edit Campaign' }}
           <span class="modal-close" @click="adModal=null">✕</span>
         </div>
 
@@ -467,14 +473,14 @@
             </label>
             <button v-if="adModal.video" class="btn-remove" @click="adModal.video=''">Remove</button>
           </div>
-          <div style="font-size:10px;color:#aaa;margin-top:4px">Max 500 MB. Plays muted during monster feeding.</div>
+          <div style="font-size:10px;color:#aaa;margin-top:4px">Max 5 MB. Plays muted during monster feeding.</div>
         </div>
 
         <div v-if="adError" class="error-msg">{{ adError }}</div>
 
         <div class="modal-footer">
           <button class="btn-gray" @click="adModal=null">Cancel</button>
-          <button class="btn-primary" @click="saveAd">{{ adModal._isNew ? 'Launch Campaign' : 'Save Changes' }}</button>
+          <button class="btn-primary" @click="saveAd">{{ adModal._isNew ? 'Launch Campaign' : adModal.adStatus === 'rejected' ? '🔄 Resubmit for Review' : 'Save Changes' }}</button>
         </div>
       </div>
     </div>
@@ -854,12 +860,13 @@ function saveAd() {
     const diff = a.budget - oldBudget
     if (diff > merchantStore.credits) { adError.value = 'Insufficient credits for increased budget.'; return }
     merchantStore.credits -= diff
-    // Keep existing adStatus when editing; reset to pending_review if video/title changed
     const prev = merchantStore.ads[a._idx]
+    // Rejected ads always go back to pending_review on resubmit; otherwise only reset if content changed
+    const wasRejected = prev.adStatus === 'rejected'
     const changed = prev.title !== a.title || !prev.video !== !a.video
     merchantStore.ads[a._idx] = {
       ...prev, title: a.title, video: a.video, budget: a.budget,
-      adStatus: changed ? 'pending_review' : (prev.adStatus || 'pending_review'),
+      adStatus: (wasRejected || changed) ? 'pending_review' : (prev.adStatus || 'pending_review'),
     }
   }
   merchantStore.save()
