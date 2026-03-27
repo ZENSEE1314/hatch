@@ -443,7 +443,7 @@
     <!-- ═══ AD MODAL ═══ -->
     <div v-if="adModal" class="modal-overlay" @click.self="adModal=null">
       <div class="modal-box">
-        <div class="modal-title">{{ adModal._isNew ? '➕ New Ad Campaign' : adModal.adStatus === 'rejected' ? '🔄 Edit & Resubmit' : '✏️ Edit Campaign' }}
+        <div class="modal-title">{{ adModal._isNew ? '➕ New Ad Campaign' : (adModal.adStatus === 'rejected' || adModal.adStatus === 'approved') ? '🔄 Edit & Resubmit' : '✏️ Edit Campaign' }}
           <span class="modal-close" @click="adModal=null">✕</span>
         </div>
 
@@ -480,7 +480,7 @@
 
         <div class="modal-footer">
           <button class="btn-gray" @click="adModal=null">Cancel</button>
-          <button class="btn-primary" @click="saveAd">{{ adModal._isNew ? 'Launch Campaign' : adModal.adStatus === 'rejected' ? '🔄 Resubmit for Review' : 'Save Changes' }}</button>
+          <button class="btn-primary" @click="saveAd">{{ adModal._isNew ? 'Launch Campaign' : (adModal.adStatus === 'rejected' || adModal.adStatus === 'approved') ? '🔄 Resubmit for Review' : 'Save Changes' }}</button>
         </div>
       </div>
     </div>
@@ -861,12 +861,11 @@ function saveAd() {
     if (diff > merchantStore.credits) { adError.value = 'Insufficient credits for increased budget.'; return }
     merchantStore.credits -= diff
     const prev = merchantStore.ads[a._idx]
-    // Rejected ads always go back to pending_review on resubmit; otherwise only reset if content changed
-    const wasRejected = prev.adStatus === 'rejected'
-    const changed = prev.title !== a.title || !prev.video !== !a.video
+    // Any edit of a rejected or approved ad sends it back to pending_review
+    const wasReviewed = prev.adStatus === 'rejected' || prev.adStatus === 'approved'
     merchantStore.ads[a._idx] = {
       ...prev, title: a.title, video: a.video, budget: a.budget,
-      adStatus: (wasRejected || changed) ? 'pending_review' : (prev.adStatus || 'pending_review'),
+      adStatus: wasReviewed ? 'pending_review' : (prev.adStatus || 'pending_review'),
     }
   }
   merchantStore.save()

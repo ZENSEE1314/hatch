@@ -519,7 +519,7 @@ export function getMonsterImage(monster) {
   if (names) {
     const file   = names[variant]
     const folder = `${SET_FOLDER[set]}/${EL_FOLDER[element]}`
-    return `<img src="/monsters/${folder}/${file}.png" style="width:100%;height:100%;object-fit:contain" loading="lazy" />`
+    return `<img src="/monsters/${folder}/${file}.webp" style="width:100%;height:100%;object-fit:contain" loading="lazy" />`
   }
   return getMonsterSVG(element, set, variant)
 }

@@ -157,11 +157,9 @@
           <span class="feed-prog-label">{{ fd.todayFeedings }}/3 sessions used today</span>
         </div>
 
-        <div v-if="liveHp(detail) === 100 && fd.todayFeedings >= 3" class="feed-done-msg">✅ Fed & all 3 sessions done. Come back tomorrow!</div>
-        <div v-else-if="liveHp(detail) === 100" class="feed-done-msg">
-          ✅ Already fed!
-          <div v-if="cooldownActive" class="cd-next-row">⏳ Next session in <span class="cool-mini-timer">{{ cooldownDisplay }}</span></div>
-          <div v-else class="cd-next-row" style="color:#2e7d32">✅ Ready for next session now</div>
+        <div v-if="liveHp(detail) >= 60 && fd.todayFeedings < 3" class="feed-done-msg">
+          😊 Monster is still satisfied ({{ liveHp(detail) }}% satiety) — feed when it drops below 60%
+          <div class="cd-next-row">⏳ Gets hungry in {{ hungerTimeLeft(detail) }}</div>
         </div>
         <div v-else-if="fd.todayFeedings >= 3" class="feed-done-msg">📅 All 3 sessions used. Come back tomorrow!</div>
         <div v-else-if="cooldownActive" class="cooldown-mini">

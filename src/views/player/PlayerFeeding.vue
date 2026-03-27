@@ -86,7 +86,8 @@
             <span v-else>🍖 Feed!</span>
           </button>
           <div v-if="!canFeed(m)" class="feed-reason">
-            <span v-if="fd.todayFeedings >= 3">No sessions left</span>
+            <span v-if="liveHp(m) >= 60">Not hungry yet</span>
+            <span v-else-if="fd.todayFeedings >= 3">No sessions left</span>
             <span v-else-if="cooldownActive">{{ shortCooldown }}</span>
           </div>
         </div>
@@ -205,7 +206,7 @@ const shortCooldown = computed(() => {
 })
 
 function canFeed(m) {
-  return fd.value.todayFeedings < 3 && !cooldownActive.value
+  return fd.value.todayFeedings < 3 && !cooldownActive.value && liveHp(m) < 60
 }
 
 // ── Totals ──────────────────────────────────────────────────────

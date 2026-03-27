@@ -1215,16 +1215,19 @@ async function loadMerchants() {
 const pendingMerchants = computed(() => allMerchants.value.filter(m => m.status === 'pending'))
 const editMerchant = ref(null)
 function openEditMerchant(m) { editMerchant.value = JSON.parse(JSON.stringify(m)) }
+function merchantDataPayload(m) {
+  // Always preserve ads (strip only oversized videos)
+  const ads = (m.ads || []).map(a => (a.video||'').length <= 7*1024*1024 ? a : { ...a, video:'' })
+  return { info: m.info, credits: m.credits, ads, scans: m.scans||[], topupHistory: m.topupHistory||[], assignedEggHunter: m.assignedEggHunter, assignedAt: m.assignedAt, referralCode: m.referralCode||'' }
+}
 async function approveMerchant(m) {
-  const data = { info: m.info, credits: m.credits, assignedEggHunter: m.assignedEggHunter, assignedAt: m.assignedAt }
-  await MerchantDB.saveData(m.email, data, 'approved')
+  await MerchantDB.saveData(m.email, merchantDataPayload(m), 'approved')
   await loadMerchants()
   showToast('✅ Merchant approved!')
 }
 async function rejectMerchant(m) {
   if (!confirm(`Reject merchant ${m.info?.name}?`)) return
-  const data = { info: m.info, credits: m.credits, assignedEggHunter: m.assignedEggHunter, assignedAt: m.assignedAt }
-  await MerchantDB.saveData(m.email, data, 'rejected')
+  await MerchantDB.saveData(m.email, merchantDataPayload(m), 'rejected')
   await loadMerchants()
   showToast('❌ Merchant rejected.')
 }
@@ -1233,8 +1236,9 @@ async function saveMerchant() {
   const prevHunter = allMerchants.value.find(x => x.email === m.email)?.assignedEggHunter || ''
   const nextHunter = m.assignedEggHunter || ''
   const assignedAt = nextHunter && nextHunter !== prevHunter ? Date.now() : (nextHunter ? m.assignedAt : null)
-  const data = { info: m.info, credits: m.credits, assignedEggHunter: nextHunter, assignedAt }
-  await MerchantDB.saveData(m.email, data, m.status)
+  m.assignedEggHunter = nextHunter
+  m.assignedAt        = assignedAt
+  await MerchantDB.saveData(m.email, merchantDataPayload(m), m.status)
   editMerchant.value = null
   await loadMerchants()
   showToast('✅ Merchant saved!')
