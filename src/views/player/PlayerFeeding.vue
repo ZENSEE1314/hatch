@@ -97,11 +97,24 @@
     <!-- AD MODAL -->
     <div v-if="adModal" class="ad-overlay">
       <div class="ad-box">
-        <div class="ad-title">📺 Watching Ad for {{ adTarget?.name }}</div>
+        <div class="ad-title">📺 Feeding {{ adTarget?.name }}</div>
         <div class="ad-screen">
-          <div style="font-size:48px;animation:ad-bounce 0.8s ease-in-out infinite">🎮</div>
-          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:12px">HATCHME Premium</div>
-          <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:4px">Get more eggs, earn more!</div>
+          <!-- Real merchant/admin video ad -->
+          <video v-if="currentAd?.video" :src="currentAd.video"
+            style="width:100%;height:100%;object-fit:cover;border-radius:0"
+            autoplay muted loop playsinline />
+          <!-- Fallback placeholder -->
+          <div v-else style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%">
+            <div style="font-size:48px;animation:ad-bounce 0.8s ease-in-out infinite">
+              {{ currentAd?.emoji || '🎮' }}
+            </div>
+            <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:12px">
+              {{ currentAd?.title || 'HATCHME' }}
+            </div>
+            <div style="font-size:12px;color:rgba(255,255,255,.7);margin-top:4px">
+              {{ currentAd?.subtitle || 'Feeding your monster…' }}
+            </div>
+          </div>
         </div>
         <div class="ad-progress-wrap">
           <div class="ad-progress-bar" :style="{ width: ((adDuration - adLeft) / adDuration * 100) + '%' }"></div>
@@ -125,6 +138,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import BottomNav from '@/components/BottomNav.vue'
 import { playerStore } from '@/store/playerStore.js'
 import { getMonsterImage } from '@/data/monsterImages.js'
+import { SettingsDB } from '@/api/db.js'
 
 // ── Per-monster streak rates ─────────────────────────────────────
 const STREAK_RATES = [
@@ -148,6 +162,7 @@ let ticker = null
 onMounted(() => {
   playerStore.checkDayRollover()
   ticker = setInterval(() => { now.value = Date.now() }, 1000)
+  loadApprovedAds()
 })
 onUnmounted(() => { clearInterval(ticker); clearInterval(adTimer) })
 
@@ -197,6 +212,26 @@ function canFeed(m) {
 const monsters     = computed(() => playerStore.monsters)
 const totalEggValue = computed(() => monsters.value.reduce((s, m) => s + getEggValue(m), 0))
 
+// ── Approved ads pool ────────────────────────────────────────────
+const approvedAds = ref(JSON.parse(localStorage.getItem('approvedAds') || '[]'))
+const currentAd   = ref(null)
+
+async function loadApprovedAds() {
+  try {
+    const remote = await SettingsDB.get('approved_ads')
+    if (Array.isArray(remote) && remote.length) {
+      approvedAds.value = remote
+      localStorage.setItem('approvedAds', JSON.stringify(remote))
+    }
+  } catch { /* use cached */ }
+}
+
+function pickAd() {
+  const pool = approvedAds.value.filter(a => a.active)
+  if (!pool.length) { currentAd.value = null; return }
+  currentAd.value = pool[Math.floor(Math.random() * pool.length)]
+}
+
 // ── Ad simulation ───────────────────────────────────────────────
 const adModal    = ref(false)
 const adLeft     = ref(0)
@@ -208,6 +243,7 @@ let adTimer = null
 function startFeed(m) {
   if (!canFeed(m)) return
   adTarget.value   = m
+  pickAd()
   const duration   = Math.floor(Math.random() * 16) + 15
   adDuration.value = duration
   adLeft.value     = duration

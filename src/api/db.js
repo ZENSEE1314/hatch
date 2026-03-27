@@ -42,6 +42,12 @@ export const MerchantDB = {
   delete:   (email) => del(`/api/merchant/${encodeURIComponent(email)}`),
 }
 
+// ── GLOBAL SETTINGS (approved ads, branding) ─────────────────────────────────
+export const SettingsDB = {
+  get:  (key) => get(`/api/settings/${encodeURIComponent(key)}`),
+  save: (key, data) => put(`/api/settings/${encodeURIComponent(key)}`, { data }),
+}
+
 // ── EGG HUNTERS ──────────────────────────────────────────────────────────────
 export const HunterDB = {
   create: (data) => post('/api/egghunter', data),

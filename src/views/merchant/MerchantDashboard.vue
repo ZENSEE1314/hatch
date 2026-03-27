@@ -284,12 +284,14 @@
             </div>
             <div class="ad-body">
               <div class="ad-title">{{ a.title }}</div>
+              <!-- Approval status badge -->
+              <div class="ad-approval-badge"
+                :class="a.adStatus==='approved' ? 'approval-ok' : a.adStatus==='rejected' ? 'approval-rej' : 'approval-pend'">
+                {{ a.adStatus==='approved' ? '✅ Approved — Live' : a.adStatus==='rejected' ? '❌ Rejected by admin' : '⏳ Pending admin review' }}
+              </div>
               <div class="ad-stats-row">
                 <span class="ad-stat-chip blue">Budget: {{ a.budget.toLocaleString() }} credits</span>
                 <span class="ad-stat-chip green">Used: {{ a.used || 0 }}</span>
-                <span class="ad-stat-chip" :class="a.active && (a.used||0)<a.budget ? 'purple' : 'gray'">
-                  {{ a.active && (a.used||0)<a.budget ? '🟢 Running' : '⏸ Paused' }}
-                </span>
               </div>
               <!-- Budget bar -->
               <div class="budget-bar-wrap">
@@ -300,8 +302,6 @@
               </div>
               <div class="ad-sub">{{ a.used||0 }} / {{ a.budget }} credits used</div>
               <div style="display:flex;gap:8px;margin-top:8px">
-                <button class="ad-btn" :class="a.active ? 'ad-btn-pause' : 'ad-btn-play'"
-                  @click="toggleAd(i)">{{ a.active ? '⏸ Pause' : '▶ Activate' }}</button>
                 <button class="ad-btn ad-btn-edit" @click="openEditAd(i)">✏️ Edit</button>
                 <button class="ad-btn ad-btn-del" @click="deleteAd(i)">🗑</button>
               </div>
@@ -583,17 +583,21 @@ async function refreshFromDB() {
   try {
     const res = await MerchantDB.get(merchantEmail)
     if (!res || res.error) return
+    // Preserve local ad videos — they are NOT stored in DB (too large)
+    const localAdVideos = {}
+    merchantStore.ads.forEach(a => { if (a.video) localAdVideos[a.id] = a.video })
     if (res.data) {
       merchantStore._apply(res.data)
+      // Restore videos into the freshly-applied ads
+      merchantStore.ads.forEach(a => { if (localAdVideos[a.id]) a.video = localAdVideos[a.id] })
     }
     // Status is a separate DB column — always override from the authoritative DB value
-    if (res.status) {
-      merchantStore.status = res.status
-    }
+    if (res.status) merchantStore.status = res.status
     // Sync back to localStorage
     const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
     accounts[merchantEmail] = {
       ...(res.data || {}),
+      ads: merchantStore.ads,   // include videos for local cache
       status: res.status || merchantStore.status,
       passwordHash: (accounts[merchantEmail] || {}).passwordHash || '',
     }
@@ -832,16 +836,26 @@ function saveAd() {
   if (!a.budget || a.budget < 1) { adError.value = 'Minimum budget is 1 credit.'; return }
   if (a.budget > merchantStore.credits) { adError.value = `Insufficient credits. You have ${merchantStore.credits} credits.`; return }
 
-  const data = { id: a.id||Date.now(), title: a.title, video: a.video, budget: a.budget, used: a.used||0, active: a.active }
   if (a._isNew) {
     merchantStore.credits -= a.budget  // reserve budget
-    merchantStore.ads.push(data)
+    merchantStore.ads.push({
+      id: a.id||Date.now(), title: a.title, video: a.video,
+      budget: a.budget, used: 0, active: false,
+      adStatus: 'pending_review',  // requires admin approval before going live
+      merchantEmail, merchantName: merchantStore.info?.name || merchantEmail,
+    })
   } else {
     const oldBudget = merchantStore.ads[a._idx]?.budget || 0
     const diff = a.budget - oldBudget
     if (diff > merchantStore.credits) { adError.value = 'Insufficient credits for increased budget.'; return }
     merchantStore.credits -= diff
-    merchantStore.ads[a._idx] = data
+    // Keep existing adStatus when editing; reset to pending_review if video/title changed
+    const prev = merchantStore.ads[a._idx]
+    const changed = prev.title !== a.title || !prev.video !== !a.video
+    merchantStore.ads[a._idx] = {
+      ...prev, title: a.title, video: a.video, budget: a.budget,
+      adStatus: changed ? 'pending_review' : (prev.adStatus || 'pending_review'),
+    }
   }
   merchantStore.save()
   adModal.value = null
@@ -1108,7 +1122,11 @@ function logout() {
 .ad-video     { width:100%; height:100%; object-fit:cover; }
 .ad-nope      { font-size:28px; }
 .ad-body      { flex:1; min-width:0; }
-.ad-title     { font-size:13px; font-weight:800; color:#1a1f3c; margin-bottom:6px; }
+.ad-title     { font-size:13px; font-weight:800; color:#1a1f3c; margin-bottom:4px; }
+.ad-approval-badge { font-size:10px; font-weight:800; border-radius:8px; padding:3px 8px; display:inline-block; margin-bottom:6px; }
+.approval-ok   { background:#e8f5e9; color:#2e7d32; }
+.approval-pend { background:#fff8e1; color:#f57f17; }
+.approval-rej  { background:#fce4ec; color:#c62828; }
 .ad-stats-row { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:6px; }
 .ad-stat-chip { font-size:10px; font-weight:800; padding:2px 8px; border-radius:7px; }
 .blue  { background:#e3f2fd; color:#1565c0; }

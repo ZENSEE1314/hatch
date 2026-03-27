@@ -452,6 +452,28 @@
         </div>
         <div class="hint-text">Custom ads run while credits remain. When an ad's credits hit 0, Google AdMob fills the slot. Set your AdMob Unit ID in Branding settings.</div>
 
+        <!-- ── Merchant Ad Approval Queue ── -->
+        <div v-if="pendingMerchantAds.length" style="margin-bottom:24px">
+          <div class="section-title" style="font-size:14px;color:#e65100;margin-bottom:10px">
+            🕐 Merchant Ads Pending Review ({{ pendingMerchantAds.length }})
+          </div>
+          <div v-for="ma in pendingMerchantAds" :key="ma._adId" class="merchant-ad-review-card">
+            <div class="mar-preview">
+              <video v-if="ma.video" :src="ma.video" class="mar-video" muted loop autoplay playsinline />
+              <div v-else class="mar-no-video">🎬</div>
+            </div>
+            <div class="mar-info">
+              <div class="mar-store">🏪 {{ ma.merchantName || ma.merchantEmail }}</div>
+              <div class="mar-title">{{ ma.title }}</div>
+              <div class="mar-meta">Budget: {{ ma.budget?.toLocaleString() }} credits</div>
+            </div>
+            <div class="mar-actions">
+              <button class="act-btn ok-btn" @click="approveMerchantAd(ma)">✅ Approve</button>
+              <button class="act-btn del-btn" @click="rejectMerchantAd(ma)">❌ Reject</button>
+            </div>
+          </div>
+        </div>
+
         <div class="ads-grid">
           <div v-for="(ad,i) in ads" :key="i" class="ad-card" :class="{ 'ad-inactive': !ad.active }">
             <!-- Preview -->
@@ -686,6 +708,38 @@
           </div>
 
         </div>
+
+        <!-- SEO / Meta Tags -->
+        <div style="margin-top:24px">
+          <div style="font-weight:700;font-size:13px;color:#7c4dff;margin-bottom:12px;display:flex;align-items:center;gap:6px">🔍 SEO &amp; Meta Tags</div>
+          <div class="brand-grid">
+            <div class="brand-card">
+              <div class="brand-label">Page Title <span style="font-size:10px;color:#888">(browser tab &amp; Google)</span></div>
+              <input class="form-input" v-model="branding.seoTitle" placeholder="HATCHME – Real Life RPG" />
+            </div>
+            <div class="brand-card">
+              <div class="brand-label">Meta Keywords <span style="font-size:10px;color:#888">(comma-separated)</span></div>
+              <input class="form-input" v-model="branding.seoKeywords" placeholder="hatchme, rpg, egg hunt" />
+            </div>
+            <div class="brand-card" style="grid-column: span 2">
+              <div class="brand-label">Meta Description <span style="font-size:10px;color:#888">(shown in Google search results)</span></div>
+              <textarea class="form-input" v-model="branding.seoDescription" rows="2" placeholder="Short description of your app..." style="resize:vertical" />
+            </div>
+            <div class="brand-card">
+              <div class="brand-label">OG Title <span style="font-size:10px;color:#888">(social share title)</span></div>
+              <input class="form-input" v-model="branding.ogTitle" placeholder="Same as page title if blank" />
+            </div>
+            <div class="brand-card">
+              <div class="brand-label">OG Image URL <span style="font-size:10px;color:#888">(social share thumbnail)</span></div>
+              <input class="form-input" v-model="branding.ogImage" placeholder="https://..." />
+            </div>
+            <div class="brand-card" style="grid-column: span 2">
+              <div class="brand-label">OG Description <span style="font-size:10px;color:#888">(social share description)</span></div>
+              <textarea class="form-input" v-model="branding.ogDescription" rows="2" placeholder="Same as meta description if blank" style="resize:vertical" />
+            </div>
+          </div>
+        </div>
+
         <div class="save-row" style="margin-top:20px">
           <button class="save-btn" @click="saveBranding">💾 Save Branding</button>
         </div>
@@ -970,7 +1024,7 @@ import { ref, computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MONSTER_DEX from '@/data/monsterDex.js'
 import { getMonsterImage } from '@/data/monsterImages.js'
-import { PlayerDB, MerchantDB, HunterDB } from '@/api/db.js'
+import { PlayerDB, MerchantDB, HunterDB, SettingsDB } from '@/api/db.js'
 
 const router  = useRouter()
 const role    = localStorage.getItem('adminAuth') || 'admin'
@@ -1014,8 +1068,12 @@ function mapMerchant(row) {
       tier:     'Bronze',
     },
     credits:           d.credits           || 0,
+    scans:             d.scans             || [],
+    topupHistory:      d.topupHistory      || [],
+    ads:               d.ads               || [],
     assignedEggHunter: d.assignedEggHunter || '',
     assignedAt:        d.assignedAt        || null,
+    referralCode:      d.referralCode      || '',
     _store:            row.store,
     _country:          row.country,
     _phone:            row.phone,
@@ -1408,7 +1466,61 @@ function saveMonsterLevels() { localStorage.setItem('adminMonsterLevels', JSON.s
 
 // ── ADS ──
 const ads = ref(JSON.parse(localStorage.getItem('adminAds') || '[]'))
-function saveAdsStore() { localStorage.setItem('adminAds', JSON.stringify(ads.value)) }
+async function saveAdsStore() {
+  localStorage.setItem('adminAds', JSON.stringify(ads.value))
+  // Sync approved ads to DB so players can fetch them
+  await SettingsDB.save('approved_ads', ads.value.filter(a => a.active)).catch(() => {})
+}
+
+// ── Merchant Ad Approval ──
+const pendingMerchantAds = computed(() => {
+  const result = []
+  allMerchants.value.forEach(m => {
+    (m.ads || []).forEach(a => {
+      if (a.adStatus === 'pending_review') {
+        result.push({ ...a, _adId: `${m.email}_${a.id}`, merchantEmail: m.email, merchantName: m.info?.name || m.email })
+      }
+    })
+  })
+  return result
+})
+
+async function approveMerchantAd(ma) {
+  // Mark approved in merchant's data
+  const merchant = allMerchants.value.find(m => m.email === ma.merchantEmail)
+  if (!merchant) return
+  const adIdx = merchant.ads.findIndex(a => a.id === ma.id)
+  if (adIdx < 0) return
+  merchant.ads[adIdx].adStatus = 'approved'
+  merchant.ads[adIdx].active   = true
+  await MerchantDB.saveData(ma.merchantEmail, {
+    info: merchant.info, credits: merchant.credits, scans: merchant.scans,
+    topupHistory: merchant.topupHistory, ads: merchant.ads.map(({ video: _v, ...rest }) => rest),
+    referralCode: merchant.referralCode, assignedEggHunter: merchant.assignedEggHunter,
+  })
+  // Add to global approved ads list (minus video — players will get video from merchant's data)
+  const { video, ...adMeta } = ma
+  ads.value.push({ ...adMeta, active: true, credits: ma.budget || 0, _source: 'merchant' })
+  await saveAdsStore()
+  await loadMerchants()
+  showToast('✅ Merchant ad approved and added to player feed!')
+}
+
+async function rejectMerchantAd(ma) {
+  const merchant = allMerchants.value.find(m => m.email === ma.merchantEmail)
+  if (!merchant) return
+  const adIdx = merchant.ads.findIndex(a => a.id === ma.id)
+  if (adIdx < 0) return
+  merchant.ads[adIdx].adStatus = 'rejected'
+  merchant.ads[adIdx].active   = false
+  await MerchantDB.saveData(ma.merchantEmail, {
+    info: merchant.info, credits: merchant.credits, scans: merchant.scans,
+    topupHistory: merchant.topupHistory, ads: merchant.ads.map(({ video: _v, ...rest }) => rest),
+    referralCode: merchant.referralCode, assignedEggHunter: merchant.assignedEggHunter,
+  })
+  await loadMerchants()
+  showToast('❌ Merchant ad rejected.')
+}
 function toggleAd(i)  { ads.value[i].active = !ads.value[i].active; saveAdsStore(); showToast(ads.value[i].active ? '▶ Ad activated' : '⏸ Ad paused') }
 function deleteAd(i)  { if (!confirm('Delete this ad?')) return; ads.value.splice(i,1); saveAdsStore(); showToast('🗑 Ad deleted.') }
 
@@ -1436,15 +1548,54 @@ function saveAd() {
 }
 
 // ── BRANDING ──
-const DEFAULT_BRANDING = { appName:'HATCHME', tagline:'Real Life RPG', primaryColor:'#7c4dff', logo:'', favicon:'', introVideo:'', supportEmail:'support@hatchme.com', adMobUnitId:'' }
-const branding = ref(JSON.parse(localStorage.getItem('adminBranding') || 'null') || { ...DEFAULT_BRANDING })
+const DEFAULT_BRANDING = {
+  appName:'HATCHME', tagline:'Real Life RPG', primaryColor:'#7c4dff',
+  logo:'', favicon:'', introVideo:'', supportEmail:'support@hatchme.com', adMobUnitId:'',
+  seoTitle:'HATCHME – Real Life RPG', seoDescription:'Hatch monsters, scan eggs, and earn real rewards in the HATCHME Real Life RPG.',
+  seoKeywords:'hatchme, real life rpg, egg hunt, monsters, rewards',
+  ogTitle:'HATCHME – Real Life RPG', ogDescription:'', ogImage:'',
+}
+const _savedBranding = JSON.parse(localStorage.getItem('adminBranding') || 'null') || {}
+const branding = ref({ ...DEFAULT_BRANDING, ..._savedBranding, introVideo: localStorage.getItem('adminBrandingVideo') || _savedBranding.introVideo || '' })
+
 async function uploadFile(e, field) {
   const file = e.target.files[0]
   if (!file) return
   if (field === 'introVideo' && file.size > 500 * 1024 * 1024) { alert('Video must be under 500 MB.'); return }
   branding.value[field] = await readFile(file)
 }
-function saveBranding() { localStorage.setItem('adminBranding', JSON.stringify(branding.value)); showToast('✅ Branding saved!') }
+
+function applyMetaTags(b) {
+  document.title = b.seoTitle || b.appName || 'HATCHME'
+  const setMeta = (name, content, prop) => {
+    const sel = prop ? `meta[property="${name}"]` : `meta[name="${name}"]`
+    let el = document.querySelector(sel)
+    if (!el) { el = document.createElement('meta'); prop ? el.setAttribute('property', name) : el.setAttribute('name', name); document.head.appendChild(el) }
+    el.setAttribute('content', content)
+  }
+  setMeta('description', b.seoDescription)
+  setMeta('keywords', b.seoKeywords)
+  setMeta('og:title', b.ogTitle || b.seoTitle, true)
+  setMeta('og:description', b.ogDescription || b.seoDescription, true)
+  setMeta('og:image', b.ogImage, true)
+}
+
+function saveBranding() {
+  try {
+    const { introVideo, ...rest } = branding.value
+    localStorage.setItem('adminBranding', JSON.stringify(rest))
+    if (introVideo) {
+      try { localStorage.setItem('adminBrandingVideo', introVideo) }
+      catch { showToast('⚠️ Video too large for storage — other settings saved.'); return }
+    } else {
+      localStorage.removeItem('adminBrandingVideo')
+    }
+    applyMetaTags(branding.value)
+    showToast('✅ Branding saved!')
+  } catch(e) {
+    showToast('⚠️ Save failed — storage full. Try removing the intro video.')
+  }
+}
 
 // ── SUMMARY ──
 const totalCash     = computed(() => allPlayers.value.reduce((s,p) => s + Number(p.user.cash||0), 0).toFixed(2))
@@ -1720,4 +1871,13 @@ const navSections = [
 .support-thread-row:hover { background:#f8f7ff; }
 .thread-active { background:#ede7ff !important; }
 td :deep(svg), .form-group :deep(svg) { width:100%; height:100%; display:block; }
+.merchant-ad-review-card { display:flex; align-items:center; gap:12px; background:#fff; border:2px solid #ffe0b2; border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+.mar-preview { width:80px; height:56px; flex-shrink:0; border-radius:8px; overflow:hidden; background:#f4f6ff; display:flex; align-items:center; justify-content:center; }
+.mar-video   { width:100%; height:100%; object-fit:cover; }
+.mar-no-video{ font-size:24px; }
+.mar-info    { flex:1; min-width:0; }
+.mar-store   { font-size:10px; font-weight:800; color:#e65100; margin-bottom:2px; }
+.mar-title   { font-size:13px; font-weight:800; color:#1a1f3c; }
+.mar-meta    { font-size:11px; color:#888; font-weight:700; margin-top:2px; }
+.mar-actions { display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
 </style>

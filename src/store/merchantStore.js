@@ -126,8 +126,12 @@ export const merchantStore = reactive({
     const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
     accounts[key] = { ...snapshot, passwordHash: (accounts[key] || {}).passwordHash || '' }
     localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
-    // Sync to DB so admin credits changes + cross-device state stay in sync
-    MerchantDB.saveData(key, snapshot).catch(() => {})
+    // Sync to DB — strip ad videos (base64 too large); they stay in localStorage only
+    const dbSnapshot = {
+      ...snapshot,
+      ads: snapshot.ads.map(({ video: _v, ...rest }) => rest),
+    }
+    MerchantDB.saveData(key, dbSnapshot).catch(() => {})
   },
 
   topup(credits, amountSGD) {

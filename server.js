@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000
 
 const sql  = neon(process.env.DATABASE_URL)
 
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))  // 10 MB — handles base64 images; videos stripped before DB sync
 
 // ── CORS (allow Render preview + localhost) ──────────────────────────────────
 app.use((req, res, next) => {
@@ -212,6 +212,35 @@ app.delete('/api/merchant/:email', async (req, res) => {
     await sql`DELETE FROM merchants WHERE email = ${req.params.email.toLowerCase()}`
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: 'Server error' }) }
+})
+
+// ════════════════════════════════════════════════════════════════
+//  GLOBAL SETTINGS (approved ads, branding meta)
+// ════════════════════════════════════════════════════════════════
+
+// Ensure settings table exists
+;(async () => {
+  try {
+    await sql`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value JSONB NOT NULL DEFAULT '{}'::jsonb)`
+  } catch (e) { console.error('settings table init error', e.message) }
+})()
+
+// Get a settings key
+app.get('/api/settings/:key', async (req, res) => {
+  try {
+    const rows = await sql`SELECT value FROM settings WHERE key = ${req.params.key}`
+    res.json(rows.length ? rows[0].value : {})
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
+// Save a settings key
+app.put('/api/settings/:key', async (req, res) => {
+  try {
+    const { data } = req.body
+    await sql`INSERT INTO settings (key, value) VALUES (${req.params.key}, ${JSON.stringify(data)})
+              ON CONFLICT (key) DO UPDATE SET value = ${JSON.stringify(data)}`
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: err.message }) }
 })
 
 // ── Serve Vue app (production) ───────────────────────────────────────────────
