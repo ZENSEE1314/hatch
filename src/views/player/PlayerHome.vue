@@ -215,7 +215,7 @@ function liveHp(m) {
   if (!m.lastFedAt) return 0
   return Math.max(0, Math.round(100 - ((now.value - m.lastFedAt) / HUNGER_MS) * 100))
 }
-const hungryCount = computed(() => playerStore.monsters.filter(m => liveHp(m) < 100).length)
+const hungryCount = computed(() => playerStore.monsters.filter(m => liveHp(m) < 30).length)
 const activeQuests = computed(() => playerStore.quests.filter(q => q.enabled).slice(0, 4))
 const notifications = computed(() => playerStore.notifications)
 const unreadCount = computed(() => playerStore.notifications.filter(n => !n.read).length)

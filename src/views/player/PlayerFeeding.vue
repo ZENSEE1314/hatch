@@ -60,11 +60,11 @@
 
           <!-- Hunger / HP bar (drips over 3h) -->
           <div class="hunger-label-row">
-            <span class="hunger-label" :class="{ red: liveHp(m) === 0, orange: liveHp(m) > 0 && liveHp(m) < 50 }">
-              {{ liveHp(m) === 0 ? '😵 Starving!' : liveHp(m) === 100 ? '✅ Full' : `😤 ${liveHp(m)}% hungry` }}
+            <span class="hunger-label" :class="{ red: liveHp(m) === 0, orange: liveHp(m) > 0 && liveHp(m) < 30 }">
+              {{ liveHp(m) === 0 ? '😵 Starving!' : liveHp(m) === 100 ? '✅ Full' : liveHp(m) >= 60 ? `😊 ${liveHp(m)}% satisfied` : liveHp(m) >= 30 ? `😤 ${liveHp(m)}% hungry` : `😰 ${liveHp(m)}% very hungry` }}
             </span>
             <span class="hunger-timer" :class="{ red: liveHp(m) === 0 }">
-              {{ liveHp(m) === 0 ? 'Feed now!' : liveHp(m) === 100 ? `full for ${hungerTimeLeft(m)}` : `starves in ${hungerTimeLeft(m)}` }}
+              {{ liveHp(m) === 0 ? 'Feed now!' : `hungry in ${hungerTimeLeft(m)}` }}
             </span>
           </div>
           <div class="hunger-bar-wrap">

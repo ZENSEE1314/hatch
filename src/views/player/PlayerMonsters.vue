@@ -39,16 +39,18 @@
       <div v-else class="owned-grid">
         <div v-for="m in filteredOwned" :key="m.id"
           class="monster-card"
-          :class="{ starving: liveHp(m) === 0, hungry: liveHp(m) > 0 && liveHp(m) < 100 }"
+          :class="{ starving: liveHp(m) === 0, hungry: liveHp(m) > 0 && liveHp(m) < 30 }"
           :style="{ background: elementGradient(m.element) }"
           @click="openDetail(m)">
           <div class="tier-badge-tr" :class="'badge-' + m.tier.toLowerCase()">{{ m.tier }}</div>
           <div class="dex-num-sm">#{{ m.dex }}</div>
 
           <!-- Status badge -->
-          <div v-if="liveHp(m) === 100" class="status-badge" style="background:#4caf50">✅ Fed</div>
-          <div v-else-if="liveHp(m) === 0" class="status-badge" style="background:#e53935">😵 Starving!</div>
-          <div v-else class="status-badge" style="background:#ff9800">😤 Hungry</div>
+          <div v-if="liveHp(m) === 100"   class="status-badge" style="background:#4caf50">✅ Full</div>
+          <div v-else-if="liveHp(m) >= 60" class="status-badge" style="background:#66bb6a">😊 Good</div>
+          <div v-else-if="liveHp(m) >= 30" class="status-badge" style="background:#ff9800">😤 Hungry</div>
+          <div v-else-if="liveHp(m) > 0"   class="status-badge" style="background:#f44336">😰 Hungry!</div>
+          <div v-else                        class="status-badge" style="background:#e53935">😵 Starving!</div>
 
           <div class="monster-face" v-html="getMonsterImage(m)"></div>
           <div class="monster-name">{{ m.name }}</div>
@@ -57,9 +59,9 @@
           </div>
           <div class="streak-row">🔥 {{ m.streak || 0 }}d streak</div>
 
-          <!-- Live Hunger bar (drips 100→0 over 3h) -->
+          <!-- Live Satiety bar (drips 100→0 over 3h) -->
           <div class="hp-wrap">
-            <div class="hp-label">Hunger {{ liveHp(m) }}%</div>
+            <div class="hp-label">Satiety {{ liveHp(m) }}%</div>
             <div class="hp-bar"><div class="hp-fill" :style="{ width: liveHp(m)+'%', background: hpColor(liveHp(m)) }"></div></div>
           </div>
 
@@ -115,9 +117,9 @@
       <div class="detail-stats">
         <div class="stat-row" style="flex-direction:column;align-items:flex-start;gap:6px">
           <div style="display:flex;justify-content:space-between;width:100%;align-items:center">
-            <span class="stat-label">Hunger</span>
-            <span class="stat-num" :class="{ 'red-text': liveHp(detail)===0, 'orange-text': liveHp(detail)<50 && liveHp(detail)>0 }">
-              {{ liveHp(detail) === 0 ? '😵 Starving!' : liveHp(detail) === 100 ? '✅ Full' : `😤 ${liveHp(detail)}%` }}
+            <span class="stat-label">Satiety</span>
+            <span class="stat-num" :class="{ 'red-text': liveHp(detail)===0, 'orange-text': liveHp(detail)<30 && liveHp(detail)>0 }">
+              {{ liveHp(detail) === 0 ? '😵 Starving!' : liveHp(detail) === 100 ? '✅ Full' : liveHp(detail) >= 60 ? `😊 ${liveHp(detail)}% good` : liveHp(detail) >= 30 ? `😤 ${liveHp(detail)}% hungry` : `😰 ${liveHp(detail)}% very hungry` }}
             </span>
           </div>
           <!-- Live dripping hunger bar -->
