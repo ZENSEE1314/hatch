@@ -167,7 +167,10 @@ const form = ref({ name:'', email:'', phone:'', dialCode:'+65', dob:'', password
 // ── Remember Me ─────────────────────────────────────────────────────────────
 onMounted(() => {
   const saved = localStorage.getItem('playerRemember')
-  if (saved) { form.value.identifier = saved; rememberMe.value = true }
+  if (saved) {
+    try { const s = JSON.parse(saved); form.value.identifier = s.identifier || saved; form.value.password = s.password || ''; rememberMe.value = true }
+    catch { form.value.identifier = saved; rememberMe.value = true }
+  }
 
   // Load Google GIS
   if (!document.getElementById('gsi-script')) {
@@ -251,7 +254,7 @@ async function submit() {
           notifications: playerStore.notifications, feedingData: playerStore.feedingData,
         })
       }
-      if (rememberMe.value) localStorage.setItem('playerRemember', form.value.identifier)
+      if (rememberMe.value) localStorage.setItem('playerRemember', JSON.stringify({ identifier: form.value.identifier, password: form.value.password }))
       else localStorage.removeItem('playerRemember')
     }
     router.push('/player/home')

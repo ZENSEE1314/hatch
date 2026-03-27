@@ -147,7 +147,10 @@ function dialCode(code)           { return getCountry(code)?.dial     || '+??' }
 
 onMounted(() => {
   const saved = localStorage.getItem('merchantRemember')
-  if (saved) { form.value.email = saved; rememberMe.value = true }
+  if (saved) {
+    try { const s = JSON.parse(saved); form.value.email = s.email || saved; form.value.password = s.password || ''; rememberMe.value = true }
+    catch { form.value.email = saved; rememberMe.value = true }
+  }
 })
 
 const loading = ref(false)
@@ -196,7 +199,7 @@ async function submit() {
       }
       // Always apply the authoritative status from DB (overrides anything in data blob)
       merchantStore.status = dbStatus
-      if (rememberMe.value) localStorage.setItem('merchantRemember', form.value.email)
+      if (rememberMe.value) localStorage.setItem('merchantRemember', JSON.stringify({ email: form.value.email, password: form.value.password }))
       else localStorage.removeItem('merchantRemember')
       router.push(dbStatus === 'approved' ? '/merchant/dashboard' : '/merchant/pending')
     }

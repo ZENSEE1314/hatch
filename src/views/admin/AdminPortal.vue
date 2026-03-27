@@ -730,8 +730,17 @@
               <input class="form-input" v-model="branding.ogTitle" placeholder="Same as page title if blank" />
             </div>
             <div class="brand-card">
-              <div class="brand-label">OG Image URL <span style="font-size:10px;color:#888">(social share thumbnail)</span></div>
-              <input class="form-input" v-model="branding.ogImage" placeholder="https://..." />
+              <div class="brand-label">OG Image <span style="font-size:10px;color:#888">(social share thumbnail)</span></div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px">
+                <img v-if="branding.ogImage" :src="branding.ogImage" style="height:48px;border-radius:8px;border:2px solid #e8eaf0;object-fit:cover" />
+                <div v-else class="brand-img-placeholder" style="width:80px;height:48px;font-size:18px">🖼</div>
+                <label class="upload-btn">
+                  📁 Upload Image
+                  <input type="file" accept="image/*" style="display:none" @change="uploadFile($event,'ogImage')" />
+                </label>
+                <button v-if="branding.ogImage" class="act-btn del-btn" @click="branding.ogImage=''">Remove</button>
+              </div>
+              <div style="font-size:10px;color:#aaa;margin-top:4px">Recommended: 1200×630px</div>
             </div>
             <div class="brand-card" style="grid-column: span 2">
               <div class="brand-label">OG Description <span style="font-size:10px;color:#888">(social share description)</span></div>
@@ -1026,6 +1035,32 @@ import MONSTER_DEX from '@/data/monsterDex.js'
 import { getMonsterImage } from '@/data/monsterImages.js'
 import { PlayerDB, MerchantDB, HunterDB, SettingsDB } from '@/api/db.js'
 
+// IndexedDB helper for large binary assets (intro video, etc.)
+const IDB = {
+  _db: null,
+  async open() {
+    if (this._db) return this._db
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('hatchme', 1)
+      r.onupgradeneeded = e => e.target.result.createObjectStore('assets')
+      r.onsuccess = e => { this._db = e.target.result; res(this._db) }
+      r.onerror = rej
+    })
+  },
+  async set(key, val) {
+    const db = await this.open()
+    return new Promise((res, rej) => { const tx = db.transaction('assets','readwrite'); tx.objectStore('assets').put(val,key); tx.oncomplete=res; tx.onerror=rej })
+  },
+  async get(key) {
+    const db = await this.open()
+    return new Promise((res, rej) => { const tx = db.transaction('assets','readonly'); const r=tx.objectStore('assets').get(key); r.onsuccess=()=>res(r.result); r.onerror=rej })
+  },
+  async del(key) {
+    const db = await this.open()
+    return new Promise((res, rej) => { const tx = db.transaction('assets','readwrite'); tx.objectStore('assets').delete(key); tx.oncomplete=res; tx.onerror=rej })
+  },
+}
+
 const router  = useRouter()
 const role    = localStorage.getItem('adminAuth') || 'admin'
 const section = ref('dashboard')
@@ -1234,10 +1269,13 @@ async function deleteHunter(h) {
   showToast('🗑 Sales rep deleted.')
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadPlayers()
   loadMerchants()
   loadHunters()
+  // Restore intro video from IndexedDB
+  const savedVideo = await IDB.get('adminIntroVideo').catch(() => null)
+  if (savedVideo) branding.value.introVideo = savedVideo
 })
 function copySetupLink(h) {
   const payload = btoa(JSON.stringify({ email: h.email, name: h.name, code: h.code || '', password: h.password }))
@@ -1556,12 +1594,19 @@ const DEFAULT_BRANDING = {
   ogTitle:'HATCHME – Real Life RPG', ogDescription:'', ogImage:'',
 }
 const _savedBranding = JSON.parse(localStorage.getItem('adminBranding') || 'null') || {}
-const branding = ref({ ...DEFAULT_BRANDING, ..._savedBranding, introVideo: localStorage.getItem('adminBrandingVideo') || _savedBranding.introVideo || '' })
+const branding = ref({ ...DEFAULT_BRANDING, ..._savedBranding })
 
 async function uploadFile(e, field) {
   const file = e.target.files[0]
   if (!file) return
-  if (field === 'introVideo' && file.size > 500 * 1024 * 1024) { alert('Video must be under 500 MB.'); return }
+  if (field === 'introVideo') {
+    if (file.size > 500 * 1024 * 1024) { alert('Video must be under 500 MB.'); return }
+    // Store large video in IndexedDB (not localStorage)
+    const data = await readFile(file)
+    await IDB.set('adminIntroVideo', data)
+    branding.value.introVideo = data  // in-memory for preview only
+    return
+  }
   branding.value[field] = await readFile(file)
 }
 
@@ -1571,7 +1616,7 @@ function applyMetaTags(b) {
     const sel = prop ? `meta[property="${name}"]` : `meta[name="${name}"]`
     let el = document.querySelector(sel)
     if (!el) { el = document.createElement('meta'); prop ? el.setAttribute('property', name) : el.setAttribute('name', name); document.head.appendChild(el) }
-    el.setAttribute('content', content)
+    el.setAttribute('content', content || '')
   }
   setMeta('description', b.seoDescription)
   setMeta('keywords', b.seoKeywords)
@@ -1580,20 +1625,16 @@ function applyMetaTags(b) {
   setMeta('og:image', b.ogImage, true)
 }
 
-function saveBranding() {
+async function saveBranding() {
   try {
     const { introVideo, ...rest } = branding.value
     localStorage.setItem('adminBranding', JSON.stringify(rest))
-    if (introVideo) {
-      try { localStorage.setItem('adminBrandingVideo', introVideo) }
-      catch { showToast('⚠️ Video too large for storage — other settings saved.'); return }
-    } else {
-      localStorage.removeItem('adminBrandingVideo')
-    }
+    // introVideo is already in IDB from upload; if removed, clear it
+    if (!introVideo) await IDB.del('adminIntroVideo')
     applyMetaTags(branding.value)
     showToast('✅ Branding saved!')
   } catch(e) {
-    showToast('⚠️ Save failed — storage full. Try removing the intro video.')
+    showToast('⚠️ Save failed — ' + e.message)
   }
 }
 

@@ -126,9 +126,12 @@ export const merchantStore = reactive({
     const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
     accounts[key] = { ...snapshot, passwordHash: (accounts[key] || {}).passwordHash || '' }
     localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
-    // Sync to DB — strip ad videos (base64 too large); they stay in localStorage only
+    // Sync to DB — strip ad videos and logo (base64 too large); they stay in localStorage only
+    if (snapshot.info?.logo) localStorage.setItem(`merchantLogo_${key}`, snapshot.info.logo)
+    else localStorage.removeItem(`merchantLogo_${key}`)
     const dbSnapshot = {
       ...snapshot,
+      info: { ...snapshot.info, logo: '' },
       ads: snapshot.ads.map(({ video: _v, ...rest }) => rest),
     }
     MerchantDB.saveData(key, dbSnapshot).catch(() => {})

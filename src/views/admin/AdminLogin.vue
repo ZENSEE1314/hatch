@@ -77,7 +77,10 @@ const ADMIN_ACCOUNTS = {
 
 onMounted(() => {
   const saved = localStorage.getItem('adminRemember')
-  if (saved) { form.value.username = saved; rememberMe.value = true }
+  if (saved) {
+    try { const s = JSON.parse(saved); form.value.username = s.username || saved; form.value.password = s.password || ''; rememberMe.value = true }
+    catch { form.value.username = saved; rememberMe.value = true }
+  }
 })
 
 function submit() {
@@ -85,7 +88,7 @@ function submit() {
   const account = ADMIN_ACCOUNTS[form.value.username.toLowerCase().trim()]
   if (!account || account.password !== form.value.password) { error.value = 'Invalid username or password.'; return }
   error.value = ''
-  if (rememberMe.value) localStorage.setItem('adminRemember', form.value.username)
+  if (rememberMe.value) localStorage.setItem('adminRemember', JSON.stringify({ username: form.value.username, password: form.value.password }))
   else localStorage.removeItem('adminRemember')
   localStorage.setItem('adminAuth', account.role)
   router.push('/admin')

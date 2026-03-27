@@ -583,25 +583,30 @@ async function refreshFromDB() {
   try {
     const res = await MerchantDB.get(merchantEmail)
     if (!res || res.error) return
-    // Preserve local ad videos — they are NOT stored in DB (too large)
+    // Preserve local ad videos and logo — they are NOT stored in DB (too large)
     const localAdVideos = {}
     merchantStore.ads.forEach(a => { if (a.video) localAdVideos[a.id] = a.video })
+    const localLogo = localStorage.getItem(`merchantLogo_${merchantEmail}`) || ''
     if (res.data) {
       merchantStore._apply(res.data)
-      // Restore videos into the freshly-applied ads
+      // Restore videos and logo into the freshly-applied store
       merchantStore.ads.forEach(a => { if (localAdVideos[a.id]) a.video = localAdVideos[a.id] })
+      if (localLogo && merchantStore.info) merchantStore.info.logo = localLogo
     }
     // Status is a separate DB column — always override from the authoritative DB value
     if (res.status) merchantStore.status = res.status
-    // Sync back to localStorage
+    // Sync back to localStorage (include restored logo)
     const accounts = JSON.parse(localStorage.getItem('merchantAccounts') || '{}')
     accounts[merchantEmail] = {
       ...(res.data || {}),
+      info: { ...(res.data?.info || {}), logo: localLogo },
       ads: merchantStore.ads,   // include videos for local cache
       status: res.status || merchantStore.status,
       passwordHash: (accounts[merchantEmail] || {}).passwordHash || '',
     }
     localStorage.setItem('merchantAccounts', JSON.stringify(accounts))
+    // Allow settings panel to re-sync with restored logo
+    settingsSynced = false
   } catch { /* offline — keep local data */ }
 }
 refreshFromDB() // immediate on mount
