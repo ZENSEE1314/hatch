@@ -453,22 +453,33 @@
         <div class="hint-text">Custom ads run while credits remain. When an ad's credits hit 0, Google AdMob fills the slot. Set your AdMob Unit ID in Branding settings.</div>
 
         <!-- ── Merchant Ad Approval Queue ── -->
-        <div v-if="pendingMerchantAds.length" style="margin-bottom:24px">
-          <div class="section-title" style="font-size:14px;color:#e65100;margin-bottom:10px">
-            🕐 Merchant Ads Pending Review ({{ pendingMerchantAds.length }})
-          </div>
-          <div v-for="ma in pendingMerchantAds" :key="ma._adId" class="merchant-ad-review-card">
-            <div class="mar-preview">
-              <video v-if="ma.video" :src="ma.video" class="mar-video" muted loop autoplay playsinline />
-              <div v-else class="mar-no-video">🎬</div>
+        <div style="margin-bottom:24px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div class="section-title" style="font-size:14px;color:#e65100;margin:0">
+              🕐 Merchant Ads Pending Review
+              <span v-if="pendingMerchantAds.length" style="background:#e65100;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;margin-left:6px">{{ pendingMerchantAds.length }}</span>
             </div>
-            <div class="mar-info">
+            <button class="act-btn" style="font-size:11px;padding:4px 12px" @click="loadMerchants">🔄 Refresh</button>
+          </div>
+          <div v-if="!pendingMerchantAds.length" style="font-size:12px;color:#aaa;padding:10px 0">No ads pending review.</div>
+          <div v-for="ma in pendingMerchantAds" :key="ma._adId" class="merchant-ad-review-card">
+            <!-- Full video preview with controls so admin can watch before deciding -->
+            <div style="margin-bottom:12px">
+              <video v-if="ma.video" :src="ma.video"
+                style="width:100%;max-height:260px;border-radius:12px;background:#000;display:block"
+                controls playsinline />
+              <div v-else style="width:100%;height:120px;background:#f5f5f5;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;border:2px dashed #ddd">
+                <span style="font-size:32px">🎬</span>
+                <span style="font-size:11px;color:#aaa;font-weight:700">No video uploaded</span>
+              </div>
+            </div>
+            <div class="mar-info" style="margin-bottom:10px">
               <div class="mar-store">🏪 {{ ma.merchantName || ma.merchantEmail }}</div>
               <div class="mar-title">{{ ma.title }}</div>
-              <div class="mar-meta">Budget: {{ ma.budget?.toLocaleString() }} credits</div>
+              <div class="mar-meta">Budget: {{ ma.budget?.toLocaleString() }} credits · {{ ma.merchantEmail }}</div>
             </div>
             <div class="mar-actions">
-              <button class="act-btn ok-btn" @click="approveMerchantAd(ma)">✅ Approve</button>
+              <button class="act-btn ok-btn" @click="approveMerchantAd(ma)">✅ Approve — Go Live</button>
               <button class="act-btn del-btn" @click="rejectMerchantAd(ma)">❌ Reject</button>
             </div>
           </div>
@@ -1029,7 +1040,7 @@
 </template>
 
 <script setup>
-import { ref, computed, reactive, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import MONSTER_DEX from '@/data/monsterDex.js'
 import { getMonsterImage } from '@/data/monsterImages.js'
@@ -1269,6 +1280,7 @@ async function deleteHunter(h) {
   showToast('🗑 Sales rep deleted.')
 }
 
+let merchantRefreshTimer = null
 onMounted(async () => {
   loadPlayers()
   loadMerchants()
@@ -1276,7 +1288,10 @@ onMounted(async () => {
   // Restore intro video from IndexedDB
   const savedVideo = await IDB.get('adminIntroVideo').catch(() => null)
   if (savedVideo) branding.value.introVideo = savedVideo
+  // Auto-refresh merchant list every 20s so deleted/new ads are reflected
+  merchantRefreshTimer = setInterval(loadMerchants, 20000)
 })
+onUnmounted(() => { clearInterval(merchantRefreshTimer) })
 function copySetupLink(h) {
   const payload = btoa(JSON.stringify({ email: h.email, name: h.name, code: h.code || '', password: h.password }))
   const url = `${window.location.origin}/egghunter/login?setup=${payload}`
